@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "FairRide Koronadal",
+    "slug": "fairride-koronadal",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fairride.koronadal"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.fairride.koronadal"
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    }
+  }
+}
