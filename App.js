@@ -1,5 +1,4 @@
-//app.js
-import 'react-native-gesture-handler'; 
+import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
@@ -7,14 +6,16 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import CalculateFareScreen from './src/screens/home/CalculateFareScreen';
 import HistoryScreen from './src/screens/history/HistoryScreen';
 import ReportStack from './src/navigation/ReportStack';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
-
 import ProfileScreen from './src/screens/profile/ProfileScreen';
+
+import HistoryStack from './src/navigation/HistoryStack';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -53,7 +54,7 @@ export default function App() {
 
   const MainTabs = () => (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: true,
         headerTitleAlign: 'left',
         headerTitleStyle: {
@@ -62,8 +63,25 @@ export default function App() {
           color: 'green',
         },
         tabBarStyle: { backgroundColor: '#fff', paddingBottom: 5 },
-        tabBarLabelStyle: { fontSize: 14, color: 'green' },
-      }}
+        tabBarLabelStyle: { fontSize: 14 },
+        tabBarActiveTintColor: 'green',
+        tabBarInactiveTintColor: 'gray',
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'FareCalculator') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'TripHistory') {
+            iconName = focused ? 'time' : 'time-outline';
+          } else if (route.name === 'Report') {
+            iconName = focused ? 'warning' : 'warning-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={22} color={color} />;
+        },
+      })}
     >
       <Tab.Screen
         name="FareCalculator"
@@ -76,25 +94,31 @@ export default function App() {
 
       <Tab.Screen
         name="TripHistory"
-        component={HistoryScreen}
+        component={HistoryStack}
         options={{
           title: 'Trip History',
           tabBarLabel: 'History',
         }}
       />
+
       <Tab.Screen
         name="Report"
         component={ReportStack}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          tabBarLabel: 'Report',
+        }}
       />
-       <Tab.Screen
-  name="Profile"
-  options={{ title: 'Profile' }}
->
-  {() => <ProfileScreen onLogout={handleLogout} />}
-</Tab.Screen>
 
-
+      <Tab.Screen
+        name="Profile"
+        options={{
+          title: 'Profile',
+          tabBarLabel: 'Profile',
+        }}
+      >
+        {() => <ProfileScreen onLogout={handleLogout} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 

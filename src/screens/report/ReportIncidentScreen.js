@@ -127,10 +127,10 @@ export default function ReportIncidentScreen({ navigation }) {
           </>
         )}
 
-        <Text style={styles.label}>Tricycle Plate Number</Text>
+        <Text style={styles.label}>MTOP / Tricycle Plate Number</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter plate number"
+          placeholder="Enter MTOP or plate number"
           value={plateNumber}
           onChangeText={setPlateNumber}
           placeholderTextColor="#999"

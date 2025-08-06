@@ -37,7 +37,7 @@ export default function ReportDetailsScreen({ route }) {
       <Text style={styles.label}>Report Type:</Text>
       <Text style={styles.text}>{report.type}</Text>
 
-      <Text style={styles.label}>Plate Number:</Text>
+      <Text style={styles.label}>MTOP / Plate Number:</Text>
       <Text style={styles.text}>{report.plateNumber}</Text>
 
       <Text style={styles.label}>Description:</Text>

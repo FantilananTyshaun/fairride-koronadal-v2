@@ -7,6 +7,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import CalculateFareScreen from 'screens/home/CalculateFareScreen';
 import HistoryScreen from 'screens/history/HistoryScreen';
 
+
 const Tab = createBottomTabNavigator();
 
 export default function MainNavigator() {

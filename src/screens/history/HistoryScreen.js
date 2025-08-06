@@ -1,4 +1,3 @@
-//historyscreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -8,6 +7,7 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Marker, Polyline } from 'react-native-maps';
@@ -44,26 +44,28 @@ export default function HistoryScreen({ navigation }) {
     const formattedDate = new Date(item.timestamp).toLocaleString();
 
     return (
-      <View style={styles.item}>
+      <TouchableOpacity
+        style={styles.item}
+        onPress={() => navigation.navigate('TripDetails', { trip: item })}
+      >
         <MapView
           style={styles.map}
           region={region}
           scrollEnabled={false}
           zoomEnabled={false}
+          pitchEnabled={false}
+          rotateEnabled={false}
+          pointerEvents="none"
         >
           <Marker coordinate={start} pinColor="green" />
           <Marker coordinate={end} pinColor="red" />
-          <Polyline
-            coordinates={[start, end]}
-            strokeColor="green"
-            strokeWidth={3}
-          />
+          <Polyline coordinates={[start, end]} strokeColor="black" strokeWidth={3} />
         </MapView>
 
         <Text style={styles.title}>Fare: ₱{item.fare}</Text>
-        <Text style={styles.greenText}>Distance: {item.distance} km</Text>
-        <Text style={styles.timestamp}>{formattedDate}</Text>
-      </View>
+        <Text style={styles.detail}>Distance: {item.distance} km</Text>
+        <Text style={styles.detail}>Date/Time: {formattedDate}</Text>
+      </TouchableOpacity>
     );
   };
 
@@ -102,21 +104,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: 'green',
+    color: 'black',
   },
-  greenText: {
-    color: 'green',
-    marginTop: 4,
-  },
-  timestamp: {
-    color: 'green',
-    fontSize: 12,
+  detail: {
+    color: 'black',
     marginTop: 4,
   },
   empty: {
     marginTop: 40,
     textAlign: 'center',
     fontSize: 16,
-    color: 'green',
+    color: 'black',
   },
 });

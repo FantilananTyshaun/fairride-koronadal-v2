@@ -1,4 +1,3 @@
-//tripservice.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
@@ -11,7 +10,7 @@ export const saveTripLocally = async (trip) => {
     const trips = existing ? JSON.parse(existing) : [];
     trips.push(trip);
     await AsyncStorage.setItem('trips', JSON.stringify(trips));
-    console.log('[TripService] Trip saved locally');
+    // console.log('[TripService] Trip saved locally'); // Removed notification
   } catch (err) {
     console.error('[TripService] Failed to save trip locally:', err);
   }

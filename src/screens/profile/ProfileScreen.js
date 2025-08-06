@@ -1,3 +1,4 @@
+// profilescreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -66,6 +67,11 @@ export default function ProfileScreen({ navigation, onLogout }) {
           <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
             <Text style={styles.buttonText}>Edit</Text>
           </TouchableOpacity>
+
+          {/* Logout only visible when NOT editing */}
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
         </>
       ) : (
         <>
@@ -113,10 +119,6 @@ export default function ProfileScreen({ navigation, onLogout }) {
           </TouchableOpacity>
         </>
       )}
-
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }

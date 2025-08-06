@@ -1,5 +1,3 @@
-// src/screens/home/CalculateFareScreen.js
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -40,6 +38,7 @@ export default function CalculateFareScreen() {
   const [start, setStart] = useState(null);
   const [end, setEnd] = useState(null);
   const [watchId, setWatchId] = useState(null);
+  const [rideInProgress, setRideInProgress] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -57,6 +56,8 @@ export default function CalculateFareScreen() {
   const handleStartRide = async () => {
     const current = await Location.getCurrentPositionAsync({});
     setStart(current.coords);
+    setEnd(null);
+    setRideInProgress(true);
 
     const watch = await Location.watchPositionAsync(
       {
@@ -72,8 +73,8 @@ export default function CalculateFareScreen() {
   };
 
   const handleEndRide = async () => {
-    if (!start || !end) {
-      Alert.alert('Error', 'Start or End location missing.');
+    if (!rideInProgress || !start || !end) {
+      Alert.alert('Cannot End Ride', 'No ride is currently active.');
       return;
     }
 
@@ -96,10 +97,12 @@ export default function CalculateFareScreen() {
 
     await saveTripLocally(trip);
 
-    Alert.alert(
-      'Trip Saved',
-      `Distance: ${trip.distance} km\nFare: ₱${fare}\n✅ Saved locally`
-    );
+    // Reset states
+    setStart(null);
+    setEnd(null);
+    setRideInProgress(false);
+
+    Alert.alert('Trip Saved', `Distance: ${trip.distance} km\nFare: ₱${fare}`);
   };
 
   return (

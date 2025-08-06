@@ -47,7 +47,7 @@ export default function ViewReportsScreen({ navigation }) {
           />
         )}
         <Text style={styles.title}>{item.type}</Text>
-        <Text style={styles.description}>Plate #: {item.plateNumber}</Text>
+        <Text style={styles.description}>MTOP / Plate #: {item.plateNumber}</Text>
         <Text style={styles.timestamp}>{formattedDate}</Text>
       </TouchableOpacity>
     );
