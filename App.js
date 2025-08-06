@@ -1,44 +1,108 @@
-import React from 'react';
+//app.js
+import 'react-native-gesture-handler'; 
+import React, { useEffect, useState } from 'react';
+import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import CalculateFareScreen from './src/screens/home/CalculateFareScreen';
 import HistoryScreen from './src/screens/history/HistoryScreen';
 import ReportStack from './src/navigation/ReportStack';
+import LoginScreen from './src/screens/auth/LoginScreen';
+import RegisterScreen from './src/screens/auth/RegisterScreen';
+
+import ProfileScreen from './src/screens/profile/ProfileScreen';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: true,
-          headerTitleAlign: 'left',
-          headerTitleStyle: {
-            fontSize: 20,
-            fontWeight: 'bold',
-            color: 'green',
-            paddingLeft: 16,
-          },
-          tabBarStyle: {
-            backgroundColor: '#fff',
-            paddingBottom: 5,
-          },
-          tabBarLabelStyle: {
-            fontSize: 14,
-            color: 'green',
-          },
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const storedUser = await AsyncStorage.getItem('loggedInUser');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    };
+    loadUser();
+  }, []);
+
+  const handleLogin = async (userData) => {
+    await AsyncStorage.setItem('loggedInUser', JSON.stringify(userData));
+    setUser(userData);
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('loggedInUser');
+    setUser(null);
+  };
+
+  const AuthStack = () => (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login">
+        {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
+      </Stack.Screen>
+      <Stack.Screen name="Register" component={RegisterScreen} />
+    </Stack.Navigator>
+  );
+
+  const MainTabs = () => (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerTitleAlign: 'left',
+        headerTitleStyle: {
+          fontSize: 30,
+          fontWeight: 'bold',
+          color: 'green',
+        },
+        tabBarStyle: { backgroundColor: '#fff', paddingBottom: 5 },
+        tabBarLabelStyle: { fontSize: 14, color: 'green' },
+      }}
+    >
+      <Tab.Screen
+        name="FareCalculator"
+        component={CalculateFareScreen}
+        options={{
+          title: 'FairRide Koronadal',
+          tabBarLabel: 'Home',
         }}
-      >
-        <Tab.Screen name="FairRide Koronadal" component={CalculateFareScreen} />
-        <Tab.Screen name="Trip History" component={HistoryScreen} />
-        <Tab.Screen
-          name="Report"
-          component={ReportStack}
-          options={{ headerShown: false }}
-        />
-      </Tab.Navigator>
-    </NavigationContainer>
+      />
+
+      <Tab.Screen
+        name="TripHistory"
+        component={HistoryScreen}
+        options={{
+          title: 'Trip History',
+          tabBarLabel: 'History',
+        }}
+      />
+      <Tab.Screen
+        name="Report"
+        component={ReportStack}
+        options={{ headerShown: false }}
+      />
+       <Tab.Screen
+  name="Profile"
+  options={{ title: 'Profile' }}
+>
+  {() => <ProfileScreen onLogout={handleLogout} />}
+</Tab.Screen>
+
+
+    </Tab.Navigator>
+  );
+
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        {user ? <MainTabs /> : <AuthStack />}
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

@@ -1,3 +1,4 @@
+//viewreportsscreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -7,6 +8,8 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  TouchableOpacity,
+  Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -32,11 +35,21 @@ export default function ViewReportsScreen({ navigation }) {
     const formattedDate = new Date(item.timestamp).toLocaleString();
 
     return (
-      <View style={styles.item}>
-        <Text style={styles.title}>Plate #: {item.plateNumber}</Text>
-        <Text style={styles.description}>{item.description}</Text>
+      <TouchableOpacity
+        style={styles.item}
+        onPress={() => navigation.navigate('ReportDetails', { report: item })}
+      >
+        {item.evidence && (
+          <Image
+            source={{ uri: item.evidence }}
+            style={{ width: '100%', height: 180, borderRadius: 8, marginBottom: 8 }}
+            resizeMode="cover"
+          />
+        )}
+        <Text style={styles.title}>{item.type}</Text>
+        <Text style={styles.description}>Plate #: {item.plateNumber}</Text>
         <Text style={styles.timestamp}>{formattedDate}</Text>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -70,16 +83,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: 'green',
-    marginBottom: 6,
+    color: 'black',
+    marginBottom: 4,
   },
   description: {
     fontSize: 14,
-    color: 'green',
+    color: 'black',
   },
   timestamp: {
     fontSize: 12,
-    color: 'green',
+    color: 'black',
     marginTop: 4,
   },
   empty: {

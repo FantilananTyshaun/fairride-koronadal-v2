@@ -23,8 +23,8 @@ const getDistanceFromLatLon = (start, end) => {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(deg2rad(start.latitude)) *
-      Math.cos(deg2rad(end.latitude)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(deg2rad(end.latitude)) *
+    Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
