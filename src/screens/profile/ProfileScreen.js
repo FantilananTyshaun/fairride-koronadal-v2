@@ -60,44 +60,46 @@ export default function ProfileScreen({ navigation, onLogout }) {
     <SafeAreaView style={styles.container}>
       {!editing ? (
         <>
-          <Text style={styles.label}>Name</Text>
-          <Text style={styles.value}>{user.name}</Text>
+          <Text style={styles.centerLabel}>Name</Text>
+          <Text style={styles.centerValue}>{user.name}</Text>
 
           <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
             <Text style={styles.buttonText}>Edit</Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
         </>
       ) : (
         <>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter name"
-          />
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter name"
+            />
+          </View>
 
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Enter email"
-            autoCapitalize="none"
-          />
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Enter email"
+              autoCapitalize="none"
+            />
+          </View>
 
-          <Text style={styles.label}>Password</Text>
-          <TextInput
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Enter password"
-            secureTextEntry
-          />
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter password"
+              secureTextEntry
+            />
+          </View>
 
           <TouchableOpacity style={styles.button} onPress={handleSave}>
             <Text style={styles.buttonText}>Save</Text>
@@ -111,6 +113,10 @@ export default function ProfileScreen({ navigation, onLogout }) {
           </TouchableOpacity>
         </>
       )}
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -118,38 +124,47 @@ export default function ProfileScreen({ navigation, onLogout }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 200,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  centerLabel: {
+    fontWeight: 'bold',
+    fontSize: 20,
+    color: 'black',
+    textAlign: 'center',
+    marginBottom: 6,
+    marginTop: 6,
+  },
+  centerValue: {
+    fontSize: 18,
+    color: 'black',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  formGroup: {
+    width: 300,
+    marginBottom: 16,
   },
   label: {
     fontWeight: 'bold',
-    fontSize: 20,
-    padding: 5,
+    fontSize: 16,
     color: 'black',
-    alignSelf: 'center',
-  },
-  value: {
-    fontSize: 18,
-    padding: 5,
-    marginBottom: 16,
-    color: 'black',
-    alignSelf: 'center',
+    marginBottom: 4,
+    textAlign: 'left',
   },
   input: {
     borderWidth: 1,
     borderColor: 'black',
     borderRadius: 8,
     padding: 10,
-    marginBottom: 16,
     color: 'black',
   },
   button: {
     backgroundColor: '#E6F5E6',
     padding: 14,
-    borderRadius: 10,
     width: 200,
-    alignSelf: 'center',
+    borderRadius: 10,
     borderColor: 'black',
     borderWidth: 1,
     alignItems: 'center',
@@ -164,7 +179,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: 12,
     width: 200,
-    alignSelf: 'center',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'black',
@@ -180,7 +194,6 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 24,
     width: 200,
-    alignSelf: 'center',
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: 'black',
