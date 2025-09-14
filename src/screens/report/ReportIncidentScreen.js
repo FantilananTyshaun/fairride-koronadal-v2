@@ -1,3 +1,4 @@
+// src/screens/report/ReportIncidentScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,10 +13,14 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
+
+import { db, storage, auth } from '../../services/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { signInAnonymously } from 'firebase/auth';
 
 export default function ReportIncidentScreen({ navigation }) {
   const [plateNumber, setPlateNumber] = useState('');
@@ -25,6 +30,14 @@ export default function ReportIncidentScreen({ navigation }) {
   const [customType, setCustomType] = useState('');
   const [evidenceUri, setEvidenceUri] = useState(null);
 
+  // Sign in anonymously for Firebase
+  useEffect(() => {
+    signInAnonymously(auth)
+      .then(() => console.log('[Firebase] Signed in anonymously'))
+      .catch(err => console.error('[Firebase] Anonymous login error:', err));
+  }, []);
+
+  // Request location
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -35,6 +48,7 @@ export default function ReportIncidentScreen({ navigation }) {
     })();
   }, []);
 
+  // Pick image or video
   const pickEvidence = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -43,38 +57,53 @@ export default function ReportIncidentScreen({ navigation }) {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      mediaTypes: ImagePicker.MediaType.All, // fixed deprecation warning
       quality: 1,
     });
 
     if (!result.canceled) {
-      setEvidenceUri(result.assets[0].uri);
+      const uri = result.assets?.[0]?.uri ?? null;
+      setEvidenceUri(uri);
     }
   };
 
+  // Submit report to Firebase
   const handleSubmit = async () => {
     const typeToSave = reportType === 'Others' ? customType.trim() : reportType;
+
     if (!typeToSave || !plateNumber || !description) {
       Alert.alert('Required', 'Please fill out all fields.');
       return;
     }
 
-    const report = {
-      type: typeToSave,
-      plateNumber,
-      description,
-      timestamp: new Date().toISOString(),
-      location,
-      evidence: evidenceUri,
-    };
-
     try {
-      const stored = await AsyncStorage.getItem('reports');
-      const reports = stored ? JSON.parse(stored) : [];
-      reports.push(report);
-      await AsyncStorage.setItem('reports', JSON.stringify(reports));
+      let evidenceURL = null;
 
-      Alert.alert('Report Saved', 'Your incident report has been saved.');
+      // Upload evidence if available
+      if (evidenceUri) {
+        const filename = evidenceUri.split('/').pop().replace(/\s/g, '_');
+        const storageRef = ref(storage, `reports/${filename}`);
+
+        const response = await fetch(evidenceUri);
+        const blob = await response.blob();
+
+        await uploadBytes(storageRef, blob);
+        evidenceURL = await getDownloadURL(storageRef);
+      }
+
+      // Save report to Firestore
+      await addDoc(collection(db, 'reports'), {
+        type: typeToSave,
+        plateNumber,
+        description,
+        location: location ?? null,
+        evidence: evidenceURL,
+        timestamp: serverTimestamp(),
+      });
+
+      Alert.alert('Report Saved', 'Your incident report has been uploaded to Firebase.');
+
+      // Reset form
       setPlateNumber('');
       setDescription('');
       setReportType('Overcharging');
@@ -82,7 +111,7 @@ export default function ReportIncidentScreen({ navigation }) {
       setEvidenceUri(null);
     } catch (err) {
       console.error('Failed to save report:', err);
-      Alert.alert('Error', 'Failed to save report.');
+      Alert.alert('Error', 'Failed to save report. Check console for details.');
     }
   };
 

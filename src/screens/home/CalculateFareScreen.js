@@ -1,166 +1,181 @@
-import React, { useState, useEffect } from 'react';
+// src/screens/home/CalculateFareScreen.js
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
-  Alert,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { saveTripLocally } from 'services/tripService';
-
-const deg2rad = (deg) => deg * (Math.PI / 180);
-const getDistanceFromLatLon = (start, end) => {
-  const R = 6371;
-  const dLat = deg2rad(end.latitude - start.latitude);
-  const dLon = deg2rad(end.longitude - start.longitude);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(deg2rad(start.latitude)) *
-    Math.cos(deg2rad(end.latitude)) *
-    Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-};
-
-const calculateFare = (distanceKm) => {
-  const baseFare = 10;
-  const ratePerKm = 5;
-  return Math.round(baseFare + distanceKm * ratePerKm);
-};
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveTripToFirebase } from '../../services/tripService';
 
 export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
-  const [start, setStart] = useState(null);
-  const [end, setEnd] = useState(null);
-  const [watchId, setWatchId] = useState(null);
-  const [rideInProgress, setRideInProgress] = useState(false);
+  const [prev, setPrev] = useState(null);
+  const [distance, setDistance] = useState(0);
+  const [fare, setFare] = useState(15); // start at base fare
+  const [tracking, setTracking] = useState(false);
+  const watchRef = useRef(null);
+  const [routeCoords, setRouteCoords] = useState([]);
 
-  useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location access is required.');
-        return;
-      }
+  const startRide = async () => {
+    setDistance(0);
+    setFare(15); // reset to base fare
+    setRouteCoords([]);
 
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc.coords);
-    })();
-  }, []);
-
-  const handleStartRide = async () => {
-    const current = await Location.getCurrentPositionAsync({});
-    setStart(current.coords);
-    setEnd(null);
-    setRideInProgress(true);
-
-    const watch = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 1000,
-        distanceInterval: 10,
-      },
-      (loc) => setEnd(loc.coords)
-    );
-
-    setWatchId(watch);
-    Alert.alert('Ride Started', 'Tracking your trip...');
-  };
-
-  const handleEndRide = async () => {
-    if (!rideInProgress || !start || !end) {
-      Alert.alert('Cannot End Ride', 'No ride is currently active.');
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission denied', 'Location permission is required.');
       return;
     }
 
-    if (watchId) {
-      watchId.remove();
-      setWatchId(null);
-    }
+    const currentLoc = await Location.getCurrentPositionAsync({});
+    setLocation(currentLoc.coords);
+    setPrev(currentLoc.coords);
+    setRouteCoords([currentLoc.coords]);
 
-    const totalKm = getDistanceFromLatLon(start, end);
-    const fare = calculateFare(totalKm);
-    const now = new Date().toISOString();
+    watchRef.current = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, distanceInterval: 1 },
+      (loc) => {
+        setLocation(loc.coords);
+        if (prev) {
+          const newDistance = getDistance(
+            prev.latitude,
+            prev.longitude,
+            loc.coords.latitude,
+            loc.coords.longitude
+          );
+          setDistance((d) => {
+            const updated = d + newDistance;
+            setFare(calculateFare(updated)); // update fare live
+            return updated;
+          });
+        }
+        setPrev(loc.coords);
+        setRouteCoords((coords) => [...coords, loc.coords]);
+      }
+    );
+
+    setTracking(true);
+  };
+
+  const endRide = async () => {
+    if (watchRef.current) {
+      watchRef.current.remove();
+      watchRef.current = null;
+    }
+    setTracking(false);
 
     const trip = {
-      start,
-      end,
-      distance: totalKm.toFixed(2),
-      fare,
-      timestamp: now,
+      start: routeCoords[0],
+      end: routeCoords[routeCoords.length - 1],
+      distance: distance.toFixed(2),
+      fare: Math.round(fare),
+      timestamp: new Date().toISOString(),
+      routeCoords,
     };
 
-    await saveTripLocally(trip);
+    try {
+      // ✅ Save to Firebase
+      await saveTripToFirebase(trip);
 
-    // Reset states
-    setStart(null);
-    setEnd(null);
-    setRideInProgress(false);
+      // ✅ Save locally to AsyncStorage
+      const stored = await AsyncStorage.getItem('trips');
+      const trips = stored ? JSON.parse(stored) : [];
+      trips.push(trip);
+      await AsyncStorage.setItem('trips', JSON.stringify(trips));
 
-    Alert.alert('Trip Saved', `Distance: ${trip.distance} km\nFare: ₱${fare}`);
+      Alert.alert('Success', 'Trip saved successfully!');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to save trip.');
+      console.error(err);
+    }
+  };
+
+  const calculateFare = (km) => {
+    const baseFare = 15; // ₱15 base fare
+    const perKmRate = 10; // ₱10 per km after 1 km
+    return km < 1 ? baseFare : baseFare + (km - 1) * perKmRate;
+  };
+
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    const toRad = (x) => (x * Math.PI) / 180;
+    const R = 6371; // km
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <MapView
         style={styles.map}
-        showsUserLocation
         region={{
-          latitude: location?.latitude || 6.5,
-          longitude: location?.longitude || 124.85,
+          latitude: location?.latitude || 11.0,
+          longitude: location?.longitude || 124.8,
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
       >
-        {start && <Marker coordinate={start} title="Start" pinColor="green" />}
-        {end && <Marker coordinate={end} title="End" pinColor="red" />}
+        {location && <Marker coordinate={location} title="You are here" />}
+        {routeCoords.length > 1 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={4}
+            strokeColor="green"
+          />
+        )}
       </MapView>
 
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.button} onPress={handleStartRide}>
-          <Text style={styles.buttonText}>Start Ride</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={handleEndRide}>
-          <Text style={styles.buttonText}>End Ride</Text>
-        </TouchableOpacity>
+      <View style={styles.controls}>
+        <Text style={styles.info}>Distance: {distance.toFixed(2)} km</Text>
+        <Text style={styles.info}>Fare: ₱{Math.round(fare)}</Text>
+
+        {!tracking ? (
+          <TouchableOpacity style={styles.button} onPress={startRide}>
+            <Text style={styles.buttonText}>Start Ride</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.button} onPress={endRide}>
+            <Text style={styles.buttonText}>End Ride</Text>
+          </TouchableOpacity>
+        )}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F8F8',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  map: {
-    flex: 1,
-    marginHorizontal: 10,
-    borderRadius: 10,
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    paddingVertical: 10,
-    backgroundColor: '#ffffff',
+  map: { flex: 1 },
+  controls: { padding: 16, backgroundColor: '#fff' },
+  info: {
+    fontSize: 16,
+    marginBottom: 8,
+    fontWeight: 'bold',
+    color: 'black',
   },
   button: {
-    backgroundColor: '#E6F5E6',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    backgroundColor: 'green',
+    padding: 14,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'green',
+    alignItems: 'center',
+    marginTop: 8,
   },
-  buttonText: {
-    color: 'green',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });

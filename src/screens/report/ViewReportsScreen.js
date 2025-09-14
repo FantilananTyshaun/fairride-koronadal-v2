@@ -1,4 +1,3 @@
-//viewreportsscreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,43 +10,46 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { db } from '../../services/firebase';
+import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 
 export default function ViewReportsScreen({ navigation }) {
   const [reports, setReports] = useState([]);
 
-  useEffect(() => {
-    const loadReports = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('reports');
-        const parsed = stored ? JSON.parse(stored) : [];
-        setReports(parsed.reverse());
-      } catch (err) {
-        console.error('Failed to load reports:', err);
-      }
-    };
+  const loadReports = async () => {
+    try {
+      const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setReports(data);
+    } catch (err) {
+      console.error('Failed to load reports from Firebase:', err);
+    }
+  };
 
+  useEffect(() => {
     const unsubscribe = navigation.addListener('focus', loadReports);
     return () => unsubscribe();
   }, [navigation]);
 
   const renderItem = ({ item }) => {
-    const formattedDate = new Date(item.timestamp).toLocaleString();
+    const formattedDate = item.timestamp?.toDate ? item.timestamp.toDate().toLocaleString() : 'Unknown';
+    const evidenceUri = item?.evidence ?? null;
 
     return (
       <TouchableOpacity
         style={styles.item}
         onPress={() => navigation.navigate('ReportDetails', { report: item })}
       >
-        {item.evidence && (
+        {evidenceUri && (
           <Image
-            source={{ uri: item.evidence }}
+            source={{ uri: evidenceUri }}
             style={{ width: '100%', height: 180, borderRadius: 8, marginBottom: 8 }}
             resizeMode="cover"
           />
         )}
-        <Text style={styles.title}>{item.type}</Text>
-        <Text style={styles.description}>MTOP / Plate #: {item.plateNumber}</Text>
+        <Text style={styles.title}>{item?.type ?? 'Unknown'}</Text>
+        <Text style={styles.description}>MTOP / Plate #: {item?.plateNumber ?? 'N/A'}</Text>
         <Text style={styles.timestamp}>{formattedDate}</Text>
       </TouchableOpacity>
     );
@@ -59,9 +61,7 @@ export default function ViewReportsScreen({ navigation }) {
         data={reports}
         keyExtractor={(_, index) => index.toString()}
         renderItem={renderItem}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No reports submitted yet.</Text>
-        }
+        ListEmptyComponent={<Text style={styles.empty}>No reports submitted yet.</Text>}
       />
     </SafeAreaView>
   );

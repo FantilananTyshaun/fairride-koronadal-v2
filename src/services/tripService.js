@@ -1,17 +1,18 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/services/tripService.js
+import { db } from './firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 /**
- * Save a trip to AsyncStorage (offline only)
- * @param {Object} trip - Trip data to store
+ * Save a trip to Firebase Firestore
+ * @param {Object} trip - Trip data
  */
-export const saveTripLocally = async (trip) => {
+export const saveTripToFirebase = async (trip) => {
   try {
-    const existing = await AsyncStorage.getItem('trips');
-    const trips = existing ? JSON.parse(existing) : [];
-    trips.push(trip);
-    await AsyncStorage.setItem('trips', JSON.stringify(trips));
-    // console.log('[TripService] Trip saved locally'); // Removed notification
+    const tripsRef = collection(db, 'trips');
+    await addDoc(tripsRef, trip);
+    console.log('[TripService] Trip saved to Firebase');
   } catch (err) {
-    console.error('[TripService] Failed to save trip locally:', err);
+    console.error('[TripService] Failed to save trip to Firebase:', err);
+    throw err;
   }
 };
