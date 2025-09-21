@@ -1,119 +1,83 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   FlatList,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  StatusBar,
   TouchableOpacity,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+  StyleSheet,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function HistoryScreen({ navigation }) {
   const [trips, setTrips] = useState([]);
 
-  useEffect(() => {
-    const loadTrips = async () => {
-      try {
-        const storedTrips = await AsyncStorage.getItem('trips');
-        const parsed = storedTrips ? JSON.parse(storedTrips) : [];
-        setTrips(parsed.reverse());
-      } catch (err) {
-        console.error('Failed to load trips:', err);
-      }
-    };
+  // Load trips whenever screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadTrips = async () => {
+        try {
+          const storedTrips = await AsyncStorage.getItem("trips");
+          const parsed = storedTrips ? JSON.parse(storedTrips) : [];
+          // ✅ Sort so that newest trips appear FIRST
+          const sorted = parsed.sort(
+            (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+          );
+          setTrips(sorted);
+        } catch (error) {
+          console.log("[History] Failed to load trips:", error);
+        }
+      };
+      loadTrips();
+    }, [])
+  );
 
-    const unsubscribe = navigation.addListener('focus', loadTrips);
-    return () => unsubscribe();
-  }, [navigation]);
-
-  const renderItem = ({ item }) => {
-    const start = item.start;
-    const end = item.end;
-
-    const region = {
-      latitude: (start.latitude + end.latitude) / 2,
-      longitude: (start.longitude + end.longitude) / 2,
-      latitudeDelta: Math.abs(start.latitude - end.latitude) + 0.01,
-      longitudeDelta: Math.abs(start.longitude - end.longitude) + 0.01,
-    };
-
-    const formattedDate = new Date(item.timestamp).toLocaleString();
-
-    return (
-      <TouchableOpacity
-        style={styles.item}
-        onPress={() => navigation.navigate('TripDetails', { trip: item })}
-      >
-        <MapView
-          style={styles.map}
-          region={region}
-          scrollEnabled={false}
-          zoomEnabled={false}
-          pitchEnabled={false}
-          rotateEnabled={false}
-          pointerEvents="none"
-        >
-          <Marker coordinate={start} pinColor="green" />
-          <Marker coordinate={end} pinColor="red" />
-          <Polyline coordinates={[start, end]} strokeColor="black" strokeWidth={3} />
-        </MapView>
-
-        <Text style={styles.title}>Fare: ₱{item.fare}</Text>
-        <Text style={styles.detail}>Distance: {item.distance} km</Text>
-        <Text style={styles.detail}>Date/Time: {formattedDate}</Text>
-      </TouchableOpacity>
-    );
-  };
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => navigation.navigate("TripDetails", { trip: item })}
+    >
+      <Text style={styles.title}>Fare: ₱{item.fare?.toFixed?.(2) || "0.00"}</Text>
+      <Text style={styles.details}>
+        Distance: {item.distance?.toFixed?.(2) || "0.00"} km
+      </Text>
+      <Text style={styles.details}>
+        Date: {item.timestamp ? new Date(item.timestamp).toLocaleString() : "N/A"}
+      </Text>
+    </TouchableOpacity>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={trips}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={renderItem}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No trip history found.</Text>
-        }
-      />
-    </SafeAreaView>
+    <View style={styles.container}>
+      {trips.length === 0 ? (
+        <Text style={styles.noTrips}>No trips recorded yet.</Text>
+      ) : (
+        <FlatList
+          data={trips}
+          keyExtractor={(item, index) => index.toString()}
+          renderItem={renderItem}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    padding: 16,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, padding: 16 },
   item: {
-    backgroundColor: '#f1f1f1',
-    padding: 14,
+    backgroundColor: "#f9f9f9",
+    padding: 16,
+    marginBottom: 12,
     borderRadius: 8,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#ccc",
   },
-  map: {
-    height: 150,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'black',
-  },
-  detail: {
-    color: 'black',
-    marginTop: 4,
-  },
-  empty: {
-    marginTop: 40,
-    textAlign: 'center',
+  title: { fontSize: 18, fontWeight: "bold", color: "black" },
+  details: { fontSize: 14, color: "black", marginTop: 4 },
+  noTrips: {
     fontSize: 16,
-    color: 'black',
+    textAlign: "center",
+    marginTop: 40,
+    color: "black",
   },
 });

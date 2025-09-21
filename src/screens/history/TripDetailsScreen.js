@@ -1,4 +1,3 @@
-// src/screens/history/TripDetailsScreen.js
 import React from 'react';
 import {
   View,
@@ -27,7 +26,7 @@ export default function TripDetailsScreen({ route }) {
       >
         <Marker coordinate={trip.start} pinColor="green" title="Start" />
         <Marker coordinate={trip.end} pinColor="red" title="End" />
-        <Polyline coordinates={[trip.start, trip.end]} strokeColor="black" strokeWidth={3} />
+        <Polyline coordinates={trip.routeCoords || [trip.start, trip.end]} strokeColor="black" strokeWidth={3} />
       </MapView>
 
       <View style={styles.details}>
@@ -45,17 +44,7 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     backgroundColor: '#fff',
   },
-  map: {
-    flex: 1,
-  },
-  details: {
-    padding: 16,
-    backgroundColor: '#fff',
-  },
-  label: {
-    fontSize: 16,
-    color: 'black',
-    marginBottom: 8,
-    fontWeight: 'bold',
-  },
+  map: { flex: 1 },
+  details: { padding: 16, backgroundColor: '#fff' },
+  label: { fontSize: 16, color: 'black', marginBottom: 8, fontWeight: 'bold' },
 });

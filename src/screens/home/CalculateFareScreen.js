@@ -18,14 +18,14 @@ export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
   const [prev, setPrev] = useState(null);
   const [distance, setDistance] = useState(0);
-  const [fare, setFare] = useState(15); // start at base fare
+  const [fare, setFare] = useState(15);
   const [tracking, setTracking] = useState(false);
   const watchRef = useRef(null);
   const [routeCoords, setRouteCoords] = useState([]);
 
   const startRide = async () => {
     setDistance(0);
-    setFare(15); // reset to base fare
+    setFare(15);
     setRouteCoords([]);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -52,7 +52,7 @@ export default function CalculateFareScreen() {
           );
           setDistance((d) => {
             const updated = d + newDistance;
-            setFare(calculateFare(updated)); // update fare live
+            setFare(calculateFare(updated));
             return updated;
           });
         }
@@ -71,20 +71,24 @@ export default function CalculateFareScreen() {
     }
     setTracking(false);
 
+    if (!routeCoords.length) {
+      Alert.alert('Error', 'No route data to save.');
+      return;
+    }
+
     const trip = {
       start: routeCoords[0],
       end: routeCoords[routeCoords.length - 1],
-      distance: distance.toFixed(2),
+      // ✅ Save as numbers
+      distance: Number(distance.toFixed(2)),
       fare: Math.round(fare),
       timestamp: new Date().toISOString(),
       routeCoords,
     };
 
     try {
-      // ✅ Save to Firebase
       await saveTripToFirebase(trip);
 
-      // ✅ Save locally to AsyncStorage
       const stored = await AsyncStorage.getItem('trips');
       const trips = stored ? JSON.parse(stored) : [];
       trips.push(trip);
@@ -98,22 +102,20 @@ export default function CalculateFareScreen() {
   };
 
   const calculateFare = (km) => {
-    const baseFare = 15; // ₱15 base fare
-    const perKmRate = 10; // ₱10 per km after 1 km
+    const baseFare = 15;
+    const perKmRate = 10;
     return km < 1 ? baseFare : baseFare + (km - 1) * perKmRate;
   };
 
   const getDistance = (lat1, lon1, lat2, lon2) => {
     const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371; // km
+    const R = 6371;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
@@ -131,11 +133,7 @@ export default function CalculateFareScreen() {
       >
         {location && <Marker coordinate={location} title="You are here" />}
         {routeCoords.length > 1 && (
-          <Polyline
-            coordinates={routeCoords}
-            strokeWidth={4}
-            strokeColor="green"
-          />
+          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="green" />
         )}
       </MapView>
 
@@ -164,12 +162,7 @@ const styles = StyleSheet.create({
   },
   map: { flex: 1 },
   controls: { padding: 16, backgroundColor: '#fff' },
-  info: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: 'bold',
-    color: 'black',
-  },
+  info: { fontSize: 16, marginBottom: 8, fontWeight: 'bold', color: 'black' },
   button: {
     backgroundColor: 'green',
     padding: 14,
