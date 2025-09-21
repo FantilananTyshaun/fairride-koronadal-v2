@@ -1,4 +1,3 @@
-// src/screens/home/CalculateFareScreen.js
 import React, { useState, useRef } from 'react';
 import {
   View,
@@ -18,14 +17,14 @@ export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
   const [prev, setPrev] = useState(null);
   const [distance, setDistance] = useState(0);
-  const [fare, setFare] = useState(15);
+  const [fare, setFare] = useState(15); // start at base fare
   const [tracking, setTracking] = useState(false);
   const watchRef = useRef(null);
   const [routeCoords, setRouteCoords] = useState([]);
 
   const startRide = async () => {
     setDistance(0);
-    setFare(15);
+    setFare(15); // reset to base fare
     setRouteCoords([]);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -52,7 +51,7 @@ export default function CalculateFareScreen() {
           );
           setDistance((d) => {
             const updated = d + newDistance;
-            setFare(calculateFare(updated));
+            setFare(calculateFare(updated)); // update fare live
             return updated;
           });
         }
@@ -71,27 +70,23 @@ export default function CalculateFareScreen() {
     }
     setTracking(false);
 
-    if (!routeCoords.length) {
-      Alert.alert('Error', 'No route data to save.');
-      return;
-    }
-
     const trip = {
       start: routeCoords[0],
       end: routeCoords[routeCoords.length - 1],
-      // ✅ Save as numbers
-      distance: Number(distance.toFixed(2)),
+      distance: distance.toFixed(2),
       fare: Math.round(fare),
       timestamp: new Date().toISOString(),
       routeCoords,
     };
 
     try {
+      // ✅ Save to Firebase
       await saveTripToFirebase(trip);
 
+      // ✅ Save locally to AsyncStorage
       const stored = await AsyncStorage.getItem('trips');
       const trips = stored ? JSON.parse(stored) : [];
-      trips.push(trip);
+      trips.unshift(trip); // always put newest trip at the top
       await AsyncStorage.setItem('trips', JSON.stringify(trips));
 
       Alert.alert('Success', 'Trip saved successfully!');
@@ -102,22 +97,32 @@ export default function CalculateFareScreen() {
   };
 
   const calculateFare = (km) => {
-    const baseFare = 15;
-    const perKmRate = 10;
+    const baseFare = 15; // ₱15 base fare
+    const perKmRate = 10; // ₱10 per km after 1 km
     return km < 1 ? baseFare : baseFare + (km - 1) * perKmRate;
   };
 
   const getDistance = (lat1, lon1, lat2, lon2) => {
     const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371;
+    const R = 6371; // km
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) *
+        Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  };
+
+  // ✅ Show Fare Matrix in an Alert
+  const showFareMatrix = () => {
+    Alert.alert(
+      'Fare Matrix',
+      'Base Fare: ₱15 (first 1 km)\nAdditional ₱10 per km after 1 km.\nExample:\n1 km = ₱15\n2 km = ₱25\n3 km = ₱35 and so on.'
+    );
   };
 
   return (
@@ -133,7 +138,11 @@ export default function CalculateFareScreen() {
       >
         {location && <Marker coordinate={location} title="You are here" />}
         {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="green" />
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={4}
+            strokeColor="green"
+          />
         )}
       </MapView>
 
@@ -150,6 +159,11 @@ export default function CalculateFareScreen() {
             <Text style={styles.buttonText}>End Ride</Text>
           </TouchableOpacity>
         )}
+
+        {/* ✅ New View Fare Matrix Button */}
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={showFareMatrix}>
+          <Text style={styles.buttonText}>View Fare Matrix</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -162,13 +176,21 @@ const styles = StyleSheet.create({
   },
   map: { flex: 1 },
   controls: { padding: 16, backgroundColor: '#fff' },
-  info: { fontSize: 16, marginBottom: 8, fontWeight: 'bold', color: 'black' },
+  info: {
+    fontSize: 16,
+    marginBottom: 8,
+    fontWeight: 'bold',
+    color: 'black',
+  },
   button: {
     backgroundColor: 'green',
     padding: 14,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 8,
+  },
+  secondaryButton: {
+    backgroundColor: 'darkgreen', // slightly different shade for the new button
   },
   buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });
