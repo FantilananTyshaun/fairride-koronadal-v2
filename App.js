@@ -14,7 +14,7 @@ import ReportStack from './src/navigation/ReportStack';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
-
+import HomeStack from './src/navigation/HomeStack';
 import HistoryStack from './src/navigation/HistoryStack';
 
 const Tab = createBottomTabNavigator();
@@ -84,13 +84,13 @@ export default function App() {
       })}
     >
       <Tab.Screen
-        name="FareCalculator"
-        component={CalculateFareScreen}
-        options={{
-          title: 'FairRide Koronadal',
-          tabBarLabel: 'Home',
-        }}
-      />
+  name="FareCalculator"
+  component={HomeStack} // <-- updated
+  options={{
+    title: 'FairRide Koronadal',
+    tabBarLabel: 'Home',
+  }}
+/>
 
       <Tab.Screen
         name="TripHistory"

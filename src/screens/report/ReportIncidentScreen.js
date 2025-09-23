@@ -9,18 +9,12 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Image,
   Platform,
   StatusBar,
 } from 'react-native';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
-import { Video } from 'expo-av';
-
-import { db, storage, auth } from '../../services/firebase';
+import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signInAnonymously } from 'firebase/auth';
 
 export default function ReportIncidentScreen({ navigation }) {
   const [plateNumber, setPlateNumber] = useState('');
@@ -28,14 +22,6 @@ export default function ReportIncidentScreen({ navigation }) {
   const [location, setLocation] = useState(null);
   const [reportType, setReportType] = useState('Overcharging');
   const [customType, setCustomType] = useState('');
-  const [evidenceUri, setEvidenceUri] = useState(null);
-
-  // Sign in anonymously for Firebase
-  useEffect(() => {
-    signInAnonymously(auth)
-      .then(() => console.log('[Firebase] Signed in anonymously'))
-      .catch(err => console.error('[Firebase] Anonymous login error:', err));
-  }, []);
 
   // Request location
   useEffect(() => {
@@ -48,25 +34,6 @@ export default function ReportIncidentScreen({ navigation }) {
     })();
   }, []);
 
-  // Pick image or video
-  const pickEvidence = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission denied', 'We need media access to upload evidence.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.All, // fixed deprecation warning
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      const uri = result.assets?.[0]?.uri ?? null;
-      setEvidenceUri(uri);
-    }
-  };
-
   // Submit report to Firebase
   const handleSubmit = async () => {
     const typeToSave = reportType === 'Others' ? customType.trim() : reportType;
@@ -77,45 +44,27 @@ export default function ReportIncidentScreen({ navigation }) {
     }
 
     try {
-      let evidenceURL = null;
-
-      // Upload evidence if available
-      if (evidenceUri) {
-        const filename = evidenceUri.split('/').pop().replace(/\s/g, '_');
-        const storageRef = ref(storage, `reports/${filename}`);
-
-        const response = await fetch(evidenceUri);
-        const blob = await response.blob();
-
-        await uploadBytes(storageRef, blob);
-        evidenceURL = await getDownloadURL(storageRef);
-      }
-
-      // Save report to Firestore
       await addDoc(collection(db, 'reports'), {
         type: typeToSave,
         plateNumber,
         description,
         location: location ?? null,
-        evidence: evidenceURL,
+        evidence: null, // removed evidence
         timestamp: serverTimestamp(),
       });
 
-      Alert.alert('Report Saved', 'Your incident report has been uploaded to Firebase.');
+      Alert.alert('Report Saved', 'Your incident report has been uploaded.');
 
       // Reset form
       setPlateNumber('');
       setDescription('');
       setReportType('Overcharging');
       setCustomType('');
-      setEvidenceUri(null);
     } catch (err) {
       console.error('Failed to save report:', err);
       Alert.alert('Error', 'Failed to save report. Check console for details.');
     }
   };
-
-  const isVideo = evidenceUri?.endsWith('.mp4');
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -175,23 +124,6 @@ export default function ReportIncidentScreen({ navigation }) {
           numberOfLines={5}
           placeholderTextColor="#999"
         />
-
-        <Text style={styles.label}>Add Photo or Video Evidence</Text>
-        <TouchableOpacity style={styles.pickButton} onPress={pickEvidence}>
-          <Text style={styles.pickButtonText}>Pick from Gallery</Text>
-        </TouchableOpacity>
-
-        {evidenceUri &&
-          (isVideo ? (
-            <Video
-              source={{ uri: evidenceUri }}
-              style={styles.preview}
-              useNativeControls
-              resizeMode="contain"
-            />
-          ) : (
-            <Image source={{ uri: evidenceUri }} style={styles.preview} resizeMode="cover" />
-          ))}
 
         <TouchableOpacity style={styles.button} onPress={handleSubmit}>
           <Text style={styles.buttonText}>Submit Report</Text>
@@ -259,25 +191,6 @@ const styles = StyleSheet.create({
   },
   pickerTextSelected: {
     textDecorationLine: 'underline',
-  },
-  pickButton: {
-    backgroundColor: '#f1f1f1',
-    padding: 12,
-    borderRadius: 8,
-    borderColor: 'black',
-    borderWidth: 1,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  pickButtonText: {
-    color: 'black',
-    fontWeight: 'bold',
-  },
-  preview: {
-    width: '100%',
-    height: 200,
-    borderRadius: 10,
-    marginBottom: 16,
   },
   button: {
     backgroundColor: '#E6F5E6',
