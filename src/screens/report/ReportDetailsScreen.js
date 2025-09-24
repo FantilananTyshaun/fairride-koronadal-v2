@@ -1,75 +1,55 @@
-//reportdetailsscreen.js
+// src/screens/report/ReportDetailsScreen.js
 import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  Platform,
-  StatusBar,
-} from 'react-native';
-import { Video } from 'expo-av';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar } from 'react-native';
 
 export default function ReportDetailsScreen({ route }) {
   const { report } = route.params;
-  const formattedDate = new Date(report.timestamp).toLocaleString();
-  const isVideo = report.evidence && report.evidence.endsWith('.mp4');
+
+  const formattedDate = report.timestamp?.toDate
+    ? report.timestamp.toDate().toLocaleString()
+    : 'Unknown';
 
   return (
-    <View style={styles.container}>
-      {report.evidence && (
-        isVideo ? (
-          <Video
-            source={{ uri: report.evidence }}
-            style={styles.media}
-            useNativeControls
-            resizeMode="contain"
-          />
-        ) : (
-          <Image
-            source={{ uri: report.evidence }}
-            style={styles.media}
-            resizeMode="cover"
-          />
-        )
-      )}
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.label}>Reported By</Text>
+        <Text style={styles.value}>{report.userName || 'Anonymous'}</Text>
 
-      <Text style={styles.label}>Report Type:</Text>
-      <Text style={styles.text}>{report.type}</Text>
+        <Text style={styles.label}>Report Type</Text>
+        <Text style={styles.value}>{report.type || 'Unknown'}</Text>
 
-      <Text style={styles.label}>MTOP / Plate Number:</Text>
-      <Text style={styles.text}>{report.plateNumber}</Text>
+        <Text style={styles.label}>MTOP Number</Text>
+        <Text style={styles.value}>{report.mtopNumber || 'N/A'}</Text>
 
-      <Text style={styles.label}>Description:</Text>
-      <Text style={styles.text}>{report.description}</Text>
+        <Text style={styles.label}>Description</Text>
+        <Text style={styles.value}>{report.description || 'No description'}</Text>
 
-      <Text style={styles.label}>Date & Time:</Text>
-      <Text style={styles.text}>{formattedDate}</Text>
-    </View>
+        <Text style={styles.label}>Date & Time</Text>
+        <Text style={styles.value}>{formattedDate}</Text>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safe: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    padding: 16,
     backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  media: {
-    width: '100%',
-    height: 240,
-    borderRadius: 10,
-    marginBottom: 16,
+  container: {
+    padding: 20,
+    paddingBottom: 40,
   },
   label: {
     fontWeight: 'bold',
     color: 'black',
-    marginTop: 8,
-  },
-  text: {
+    marginTop: 12,
     fontSize: 16,
+  },
+  value: {
     color: 'black',
-    marginBottom: 6,
+    fontSize: 16,
+    marginTop: 4,
   },
 });

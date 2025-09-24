@@ -1,67 +1,75 @@
+// src/screens/report/ViewReportsScreen.js
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  TouchableOpacity,
-  Image,
-} from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { db } from '../../services/firebase';
 import { collection, query, orderBy, getDocs } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ViewReportsScreen({ navigation }) {
   const [reports, setReports] = useState([]);
-
-  const loadReports = async () => {
-    try {
-      const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setReports(data);
-    } catch (err) {
-      console.error('Failed to load reports from Firebase:', err);
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', loadReports);
-    return () => unsubscribe();
-  }, [navigation]);
+    const loadUserAndReports = async () => {
+      try {
+        // Load logged-in user
+        const storedUser = await AsyncStorage.getItem('loggedInUser');
+        const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+        setUserName(parsedUser?.name);
 
-  const renderItem = ({ item }) => {
-    const formattedDate = item.timestamp?.toDate ? item.timestamp.toDate().toLocaleString() : 'Unknown';
-    const evidenceUri = item?.evidence ?? null;
+        // Fetch all reports
+        const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
+        const snapshot = await getDocs(q);
+        const allReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
+        // Filter by current user
+        const userReports = allReports.filter(r => r.userName === parsedUser?.name);
+        setReports(userReports);
+      } catch (err) {
+        console.error('Failed to fetch reports:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUserAndReports();
+  }, []);
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => navigation.navigate('ReportDetails', { report: item })}
+    >
+      <Text style={styles.type}>{item.type}</Text>
+      <Text style={styles.mtop}>MTOP: {item.mtopNumber}</Text>
+      <Text style={styles.description} numberOfLines={2}>{item.description}</Text>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
     return (
-      <TouchableOpacity
-        style={styles.item}
-        onPress={() => navigation.navigate('ReportDetails', { report: item })}
-      >
-        {evidenceUri && (
-          <Image
-            source={{ uri: evidenceUri }}
-            style={{ width: '100%', height: 180, borderRadius: 8, marginBottom: 8 }}
-            resizeMode="cover"
-          />
-        )}
-        <Text style={styles.title}>{item?.type ?? 'Unknown'}</Text>
-        <Text style={styles.description}>MTOP / Plate #: {item?.plateNumber ?? 'N/A'}</Text>
-        <Text style={styles.timestamp}>{formattedDate}</Text>
-      </TouchableOpacity>
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.loadingText}>Loading reports...</Text>
+      </SafeAreaView>
     );
-  };
+  }
+
+  if (reports.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.emptyText}>No reports submitted by you.</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
         data={reports}
-        keyExtractor={(_, index) => index.toString()}
+        keyExtractor={item => item.id}
         renderItem={renderItem}
-        ListEmptyComponent={<Text style={styles.empty}>No reports submitted yet.</Text>}
+        contentContainerStyle={{ padding: 16 }}
       />
     </SafeAreaView>
   );
@@ -71,34 +79,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    padding: 16,
     backgroundColor: '#fff',
   },
-  item: {
-    backgroundColor: '#f1f1f1',
-    padding: 14,
-    borderRadius: 8,
-    marginBottom: 16,
+  card: {
+    backgroundColor: '#f0f0f0',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
   },
-  title: {
-    fontSize: 16,
+  type: {
     fontWeight: 'bold',
+    fontSize: 16,
     color: 'black',
-    marginBottom: 4,
   },
-  description: {
+  mtop: {
+    marginTop: 4,
     fontSize: 14,
     color: 'black',
   },
-  timestamp: {
-    fontSize: 12,
-    color: 'black',
+  description: {
     marginTop: 4,
+    fontSize: 14,
+    color: '#555',
   },
-  empty: {
+  loadingText: {
     marginTop: 40,
     textAlign: 'center',
+    color: 'black',
     fontSize: 16,
-    color: 'green',
+  },
+  emptyText: {
+    marginTop: 40,
+    textAlign: 'center',
+    color: 'black',
+    fontSize: 16,
   },
 });

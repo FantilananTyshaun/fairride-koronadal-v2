@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
 import MapView, { Marker, Polyline, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -21,15 +22,23 @@ export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
   const [prev, setPrev] = useState(null);
   const [distanceOutside, setDistanceOutside] = useState(0);
-  const [fare, setFare] = useState(15);
+  const [fare, setFare] = useState(0);
   const [tracking, setTracking] = useState(false);
   const [routeCoords, setRouteCoords] = useState([]);
   const [baseFare, setBaseFare] = useState(15);
   const [perKmRate, setPerKmRate] = useState(2);
 
+  const [startedInside, setStartedInside] = useState(false);
+  const [enteredDowntown, setEnteredDowntown] = useState(false);
+  const [exitedDowntown, setExitedDowntown] = useState(false);
+  const [fareFrozen, setFareFrozen] = useState(false);
+
+  const [user, setUser] = useState(null); // Logged-in user
+
   const watchRef = useRef(null);
 
-  // Downtown Koronadal coordinates
+  const MIN_DISTANCE_METERS = 3; // ignore small GPS noise
+
   const downtownCoords = [
     { latitude: 6.506284667483129, longitude: 124.83915594038785 },
     { latitude: 6.494151873410396, longitude: 124.85156390970461 },
@@ -62,11 +71,10 @@ export default function CalculateFareScreen() {
       const dLat = toRad(c.latitude - center.latitude);
       const dLon = toRad(c.longitude - center.longitude);
       const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.sin(dLat / 2) ** 2 +
         Math.cos(toRad(center.latitude)) *
           Math.cos(toRad(c.latitude)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
+          Math.sin(dLon / 2) ** 2;
       const cAngle = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * cAngle * 1000; // meters
     });
@@ -89,42 +97,55 @@ export default function CalculateFareScreen() {
         console.error('Failed to fetch fare rates from Firebase:', err);
       }
     };
+
+    const fetchUser = async () => {
+      const storedUser = await AsyncStorage.getItem('loggedInUser');
+      if (storedUser) setUser(JSON.parse(storedUser));
+    };
+
     fetchFareRates();
+    fetchUser();
   }, []);
 
   const isInsideDowntown = (coords) => {
-    const R = 6371000; // meters
+    const R = 6371000;
     const dLat = ((coords.latitude - center.latitude) * Math.PI) / 180;
     const dLon = ((coords.longitude - center.longitude) * Math.PI) / 180;
     const lat1 = (center.latitude * Math.PI) / 180;
     const lat2 = (coords.latitude * Math.PI) / 180;
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-    return distance <= downtownRadius;
+    return R * c <= downtownRadius;
   };
 
-  const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
     const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371; // km
+    const R = 6371000;
     const dLat = toRad(lat2 - lat1);
     const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.sin(dLat / 2) ** 2 +
       Math.cos(toRad(lat1)) *
         Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
+        Math.sin(dLon / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   };
 
   const startRide = async () => {
+    if (!user) {
+      Alert.alert('Error', 'User not logged in.');
+      return;
+    }
+
     setDistanceOutside(0);
-    setFare(baseFare);
+    setFare(0);
     setRouteCoords([]);
+    setEnteredDowntown(false);
+    setExitedDowntown(false);
+    setFareFrozen(false);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -132,39 +153,80 @@ export default function CalculateFareScreen() {
       return;
     }
 
-    const currentLoc = await Location.getCurrentPositionAsync({});
+    const currentLoc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+
+    const inside = isInsideDowntown(currentLoc.coords);
+    setStartedInside(inside);
+    setFare(inside ? baseFare : 0);
+
     setLocation(currentLoc.coords);
     setPrev(currentLoc.coords);
     setRouteCoords([currentLoc.coords]);
 
     watchRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, distanceInterval: 1 },
+      {
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: 1000,
+        distanceInterval: 1,
+        mayShowUserSettingsDialog: true,
+      },
       (loc) => {
         setLocation(loc.coords);
-
-        if (prev) {
-          const outsidePrev = !isInsideDowntown(prev);
-          const outsideCurrent = !isInsideDowntown(loc.coords);
-
-          if (outsidePrev || outsideCurrent) {
-            const distKm = getDistanceKm(
-              prev.latitude,
-              prev.longitude,
-              loc.coords.latitude,
-              loc.coords.longitude
-            );
-            setDistanceOutside((d) => {
-              const updated = d + distKm;
-              setFare(baseFare + updated * perKmRate);
-              return updated;
-            });
-          } else {
-            setFare(baseFare);
-          }
+        if (!prev) {
+          setPrev(loc.coords);
+          setRouteCoords((c) => [...c, loc.coords]);
+          return;
         }
 
+        const insidePrev = isInsideDowntown(prev);
+        const insideCurrent = isInsideDowntown(loc.coords);
+        const distMeters = getDistanceMeters(
+          prev.latitude,
+          prev.longitude,
+          loc.coords.latitude,
+          loc.coords.longitude
+        );
+        if (distMeters < MIN_DISTANCE_METERS) return;
+
+        const distKm = distMeters / 1000;
+
+        setDistanceOutside((d) => {
+          let updated = d;
+          let newFare = fare;
+
+          // ----------- Updated Fare Logic -----------
+          if (!startedInside) {
+            // Start outside
+            if (!insidePrev && !insideCurrent) {
+              updated = d + distKm;
+              newFare = updated * perKmRate;
+            }
+            if (!enteredDowntown && insideCurrent) {
+              setEnteredDowntown(true);
+              newFare += baseFare; // Add 15 once
+            }
+          } else {
+            // Start inside
+            if (!insidePrev && !insideCurrent && exitedDowntown) {
+              updated = d + distKm;
+              newFare = baseFare + updated * perKmRate;
+            }
+            if (!exitedDowntown && !insideCurrent) {
+              setExitedDowntown(true);
+              updated = d + distKm;
+              newFare = baseFare + updated * perKmRate;
+            }
+          }
+          // ----------------------------------------
+
+          setFare(newFare);
+          return updated;
+        });
+
         setPrev(loc.coords);
-        setRouteCoords((coords) => [...coords, loc.coords]);
+        setRouteCoords((c) => [...c, loc.coords]);
       }
     );
 
@@ -172,6 +234,11 @@ export default function CalculateFareScreen() {
   };
 
   const endRide = async () => {
+    if (!user) {
+      Alert.alert('Error', 'User not logged in.');
+      return;
+    }
+
     if (watchRef.current) {
       watchRef.current.remove();
       watchRef.current = null;
@@ -188,13 +255,12 @@ export default function CalculateFareScreen() {
     };
 
     try {
-      await saveTripToFirebase(trip);
+      await saveTripToFirebase(trip, user.uid);
 
       const stored = await AsyncStorage.getItem('trips');
       const trips = stored ? JSON.parse(stored) : [];
       trips.unshift(trip);
       await AsyncStorage.setItem('trips', JSON.stringify(trips));
-
       Alert.alert('Success', 'Trip saved successfully!');
     } catch (err) {
       Alert.alert('Error', 'Failed to save trip.');
@@ -217,9 +283,13 @@ export default function CalculateFareScreen() {
         {routeCoords.length > 1 && (
           <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="green" />
         )}
-
-        {/* Downtown circle */}
-        <Circle center={center} radius={downtownRadius} strokeColor="green" strokeWidth={2} fillColor="transparent" />
+        <Circle
+          center={center}
+          radius={downtownRadius}
+          strokeColor="green"
+          strokeWidth={2}
+          fillColor="transparent"
+        />
       </MapView>
 
       <View style={styles.controls}>

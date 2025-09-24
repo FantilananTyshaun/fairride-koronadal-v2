@@ -1,6 +1,5 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -84,13 +83,13 @@ export default function App() {
       })}
     >
       <Tab.Screen
-  name="FareCalculator"
-  component={HomeStack} // <-- updated
-  options={{
-    title: 'FairRide Koronadal',
-    tabBarLabel: 'Home',
-  }}
-/>
+        name="FareCalculator"
+        component={HomeStack}
+        options={{
+          title: 'FareRide Koronadal',
+          tabBarLabel: 'Home',
+        }}
+      />
 
       <Tab.Screen
         name="TripHistory"

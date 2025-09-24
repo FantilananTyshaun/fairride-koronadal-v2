@@ -1,70 +1,91 @@
-//registerscreen.js
 import React, { useState } from 'react';
-import {
-    View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert
-} from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { db } from '../../services/firebase'; // Make sure this points to your firebase.js
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function RegisterScreen({ navigation }) {
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-    const handleRegister = async () => {
-        if (!name || !email || !password) {
-            Alert.alert('Missing Fields', 'Please fill in all fields.');
-            return;
-        }
+  const handleRegister = async () => {
+    if (!name || !email || !password) {
+      Alert.alert('Required', 'Please fill out all fields.');
+      return;
+    }
 
-        const users = JSON.parse(await AsyncStorage.getItem('users')) || [];
-        if (users.find(u => u.email === email)) {
-            Alert.alert('Already Registered', 'User with this email already exists.');
-            return;
-        }
+    try {
+      const auth = getAuth();
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
 
-        users.push({ name, email, password });
-        await AsyncStorage.setItem('users', JSON.stringify(users));
-        Alert.alert('Success', 'Account created. You can now log in.');
-        navigation.navigate('Login');
-    };
+      // ✅ Update display name in Auth
+      await updateProfile(firebaseUser, { displayName: name });
 
-    return (
-        <View style={styles.container}>
-            <Image source={require('../../../assets/logo.png')} style={styles.logo} />
-            <Text style={styles.title}>Register</Text>
+      // ✅ Save user to Firestore
+      await setDoc(doc(db, 'users', firebaseUser.uid), {
+        uid: firebaseUser.uid,
+        name: name,
+        email: email,
+        createdAt: new Date().toISOString(),
+      });
 
-            <TextInput
-                placeholder="Full Name"
-                placeholderTextColor="#999"
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-            />
-            <TextInput
-                placeholder="Email"
-                placeholderTextColor="#999"
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-            />
-            <TextInput
-                placeholder="Password"
-                placeholderTextColor="#999"
-                style={styles.input}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-            />
+      // ✅ Save user locally
+      const newUser = {
+        uid: firebaseUser.uid,
+        name: name,
+        email: email,
+      };
+      await AsyncStorage.setItem('loggedInUser', JSON.stringify(newUser));
 
-            <TouchableOpacity style={styles.button} onPress={handleRegister}>
-                <Text style={styles.buttonText}>Register</Text>
-            </TouchableOpacity>
+      Alert.alert('Success', 'Registration complete!');
+      navigation.navigate('Login');
+    } catch (error) {
+      Alert.alert('Error', error.message);
+      console.error(error);
+    }
+  };
 
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                <Text style={styles.link}>Back to Login</Text>
-            </TouchableOpacity>
-        </View>
-    );
+  return (
+    <View style={styles.container}>
+      <Image source={require('../../../assets/logo.png')} style={styles.logo} />
+      <Text style={styles.title}>Register</Text>
+
+      <TextInput
+        placeholder="Name"
+        placeholderTextColor="#999"
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        placeholder="Email"
+        placeholderTextColor="#999"
+        style={styles.input}
+        value={email}
+        onChangeText={setEmail}
+        autoCapitalize="none"
+      />
+      <TextInput
+        placeholder="Password"
+        placeholderTextColor="#999"
+        style={styles.input}
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+      />
+
+      <TouchableOpacity style={styles.button} onPress={handleRegister}>
+        <Text style={styles.buttonText}>Register</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+        <Text style={styles.link}>Already have an account? Login</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -76,4 +97,3 @@ const styles = StyleSheet.create({
   buttonText: { color: 'black', fontWeight: 'bold', fontSize: 16 },
   link: { color: 'black', textAlign: 'center', marginTop: 20 }
 });
-

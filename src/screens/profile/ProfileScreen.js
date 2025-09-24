@@ -1,3 +1,4 @@
+// ProfileScreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,6 +12,9 @@ import {
   StatusBar,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth, db } from '../../services/firebase';
+import { updateProfile, updateEmail, updatePassword } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function ProfileScreen({ onLogout }) {
   const [user, setUser] = useState(null);
@@ -34,11 +38,42 @@ export default function ProfileScreen({ onLogout }) {
   }, []);
 
   const handleSave = async () => {
-    const updatedUser = { name, email, password };
-    await AsyncStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-    setUser(updatedUser);
-    setEditing(false);
-    Alert.alert('Success', 'Profile updated');
+    if (!name || !email) {
+      Alert.alert('Missing Fields', 'Name and Email cannot be empty.');
+      return;
+    }
+
+    try {
+      // Update Firebase Auth
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: name });
+        if (auth.currentUser.email !== email) {
+          await updateEmail(auth.currentUser, email);
+        }
+        if (password) {
+          await updatePassword(auth.currentUser, password);
+        }
+
+        // Update Firestore user document
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await setDoc(
+          userRef,
+          { name, email },
+          { merge: true }
+        );
+      }
+
+      // Update local AsyncStorage
+      const updatedUser = { name, email, password };
+      await AsyncStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      setEditing(false);
+
+      Alert.alert('Success', 'Profile updated');
+    } catch (err) {
+      console.error('Error updating profile:', err);
+      Alert.alert('Update Failed', err.message);
+    }
   };
 
   const handleLogout = async () => {

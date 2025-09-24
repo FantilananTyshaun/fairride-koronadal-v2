@@ -1,4 +1,4 @@
-// src/screens/report/ReportIncidentScreen.js
+// src/screens/report/ReportOverchargingScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,54 +12,44 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export default function ReportIncidentScreen({ navigation }) {
-  const [plateNumber, setPlateNumber] = useState('');
+export default function ReportOverchargingScreen({ navigation }) {
+  const [mtopNumber, setMtopNumber] = useState('');
   const [description, setDescription] = useState('');
-  const [location, setLocation] = useState(null);
-  const [reportType, setReportType] = useState('Overcharging');
-  const [customType, setCustomType] = useState('');
+  const [user, setUser] = useState(null);
 
-  // Request location
+  // Load logged in user
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({});
-        setLocation(loc.coords);
-      }
+      const storedUser = await AsyncStorage.getItem('loggedInUser');
+      if (storedUser) setUser(JSON.parse(storedUser));
     })();
   }, []);
 
-  // Submit report to Firebase
+  // Submit report to flat "reports" collection
   const handleSubmit = async () => {
-    const typeToSave = reportType === 'Others' ? customType.trim() : reportType;
-
-    if (!typeToSave || !plateNumber || !description) {
+    if (!mtopNumber || !description) {
       Alert.alert('Required', 'Please fill out all fields.');
       return;
     }
 
     try {
       await addDoc(collection(db, 'reports'), {
-        type: typeToSave,
-        plateNumber,
+        type: 'Overcharging',
+        mtopNumber,
         description,
-        location: location ?? null,
-        evidence: null, // removed evidence
         timestamp: serverTimestamp(),
+        userName: user?.name || 'Anonymous',
       });
 
-      Alert.alert('Report Saved', 'Your incident report has been uploaded.');
+      Alert.alert('Report Saved', 'Your overcharging report has been uploaded.');
 
       // Reset form
-      setPlateNumber('');
+      setMtopNumber('');
       setDescription('');
-      setReportType('Overcharging');
-      setCustomType('');
     } catch (err) {
       console.error('Failed to save report:', err);
       Alert.alert('Error', 'Failed to save report. Check console for details.');
@@ -69,48 +59,12 @@ export default function ReportIncidentScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.label}>Report Type</Text>
-        <View style={styles.pickerRow}>
-          {['Overcharging', 'Unsafe Driving', 'Others'].map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[
-                styles.pickerOption,
-                reportType === type && styles.pickerOptionSelected,
-              ]}
-              onPress={() => setReportType(type)}
-            >
-              <Text
-                style={[
-                  styles.pickerText,
-                  reportType === type && styles.pickerTextSelected,
-                ]}
-              >
-                {type}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {reportType === 'Others' && (
-          <>
-            <Text style={styles.label}>Custom Report Type</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Reckless Behavior"
-              value={customType}
-              onChangeText={setCustomType}
-              placeholderTextColor="#999"
-            />
-          </>
-        )}
-
-        <Text style={styles.label}>MTOP / Tricycle Plate Number</Text>
+        <Text style={styles.label}>MTOP Number</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter MTOP or plate number"
-          value={plateNumber}
-          onChangeText={setPlateNumber}
+          placeholder="Enter MTOP number"
+          value={mtopNumber}
+          onChangeText={setMtopNumber}
           placeholderTextColor="#999"
         />
 
@@ -167,30 +121,6 @@ const styles = StyleSheet.create({
   textarea: {
     height: 120,
     textAlignVertical: 'top',
-  },
-  pickerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  pickerOption: {
-    flex: 1,
-    paddingVertical: 10,
-    marginHorizontal: 5,
-    borderWidth: 1,
-    borderColor: 'black',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  pickerOptionSelected: {
-    backgroundColor: '#E6F5E6',
-  },
-  pickerText: {
-    color: 'black',
-    fontWeight: 'bold',
-  },
-  pickerTextSelected: {
-    textDecorationLine: 'underline',
   },
   button: {
     backgroundColor: '#E6F5E6',
