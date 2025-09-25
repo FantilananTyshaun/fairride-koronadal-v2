@@ -1,50 +1,86 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-} from 'react-native';
+// src/screens/home/TripDetailsScreen.js
+import React, { useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Platform, StatusBar } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function TripDetailsScreen({ route }) {
   const { trip } = route.params;
-  const formattedDate = new Date(trip.timestamp).toLocaleString();
+  const mapRef = useRef(null);
+
+  // Ensure coordinates are numbers
+  const routeCoords = (trip?.routeCoords || []).map((p) => ({
+    latitude: Number(p.latitude),
+    longitude: Number(p.longitude),
+  }));
+
+  const startCoord = trip?.start
+    ? { latitude: Number(trip.start.latitude), longitude: Number(trip.start.longitude) }
+    : routeCoords[0] || { latitude: 6.496, longitude: 124.840 };
+
+  const endCoord = trip?.end
+    ? { latitude: Number(trip.end.latitude), longitude: Number(trip.end.longitude) }
+    : routeCoords[routeCoords.length - 1] || null;
+
+  const tripDate = trip?.timestamp
+    ? new Date(trip.timestamp)
+    : new Date();
+
+  useEffect(() => {
+    if (mapRef.current && routeCoords.length > 0) {
+      mapRef.current.fitToCoordinates(routeCoords, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    }
+  }, [routeCoords]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={{
-          latitude: (trip.start.latitude + trip.end.latitude) / 2,
-          longitude: (trip.start.longitude + trip.end.longitude) / 2,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
+          latitude: startCoord.latitude,
+          longitude: startCoord.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02,
         }}
       >
-        <Marker coordinate={trip.start} pinColor="green" title="Start" />
-        <Marker coordinate={trip.end} pinColor="red" title="End" />
-        <Polyline coordinates={trip.routeCoords || [trip.start, trip.end]} strokeColor="black" strokeWidth={3} />
+        {/* Start Marker */}
+        {startCoord && <Marker coordinate={startCoord} pinColor="green" title="Start" />}
+        {/* End Marker */}
+        {endCoord && <Marker coordinate={endCoord} pinColor="red" title="End" />}
+        {/* Route Polyline */}
+        {routeCoords.length > 1 && (
+          <Polyline coordinates={routeCoords} strokeColor="green" strokeWidth={4} />
+        )}
       </MapView>
 
-      <View style={styles.details}>
-        <Text style={styles.label}>Fare: ₱{trip.fare}</Text>
-        <Text style={styles.label}>Distance: {trip.distance} km</Text>
-        <Text style={styles.label}>Date & Time: {formattedDate}</Text>
+      <View style={styles.infoContainer}>
+        <Text style={styles.infoText}>Date: {tripDate.toLocaleString()}</Text>
+        <Text style={styles.infoText}>Fare: ₱{trip?.fare || 0}</Text>
+        <Text style={styles.infoText}>
+          Distance outside downtown: {trip?.distanceOutside || 0} km
+        </Text>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-    backgroundColor: '#fff',
-  },
+  container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
   map: { flex: 1 },
-  details: { padding: 16, backgroundColor: '#fff' },
-  label: { fontSize: 16, color: 'black', marginBottom: 8, fontWeight: 'bold' },
+  infoContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'black',
+  },
+  infoText: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: 'black' },
 });

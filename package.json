@@ -31,8 +31,8 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-google-places-autocomplete": "^2.5.7",
     "react-native-image-pan-zoom": "^2.1.12",
-    "react-native-maps": "^1.20.1",
-    "react-native-reanimated": "~4.1.0",
+    "react-native-maps": "1.20.1",
+    "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-view-shot": "4.0.3"

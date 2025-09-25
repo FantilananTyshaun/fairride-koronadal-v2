@@ -1,4 +1,4 @@
-// src/screens/report/ReportOverchargingScreen.js
+//ReportOverchargingScreen.js
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -21,7 +21,7 @@ export default function ReportOverchargingScreen({ navigation }) {
   const [description, setDescription] = useState('');
   const [user, setUser] = useState(null);
 
-  // Load logged in user
+  //Load logged in user
   useEffect(() => {
     (async () => {
       const storedUser = await AsyncStorage.getItem('loggedInUser');
@@ -29,7 +29,7 @@ export default function ReportOverchargingScreen({ navigation }) {
     })();
   }, []);
 
-  // Submit report to flat "reports" collection
+  //Submit report to "reports" collection
   const handleSubmit = async () => {
     if (!mtopNumber || !description) {
       Alert.alert('Required', 'Please fill out all fields.');
@@ -45,7 +45,7 @@ export default function ReportOverchargingScreen({ navigation }) {
         userName: user?.name || 'Anonymous',
       });
 
-      Alert.alert('Report Saved', 'Your overcharging report has been uploaded.');
+      Alert.alert('Report Saved', 'Your report has been uploaded.');
 
       // Reset form
       setMtopNumber('');

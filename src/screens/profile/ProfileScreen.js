@@ -5,36 +5,61 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
   Alert,
+  SafeAreaView,
+  StyleSheet,
   Platform,
   StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth, db } from '../../services/firebase';
 import { updateProfile, updateEmail, updatePassword } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export default function ProfileScreen({ onLogout }) {
-  const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    const loadUser = async () => {
-      const storedUser = await AsyncStorage.getItem('loggedInUser');
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setUser(parsed);
-        setName(parsed.name || '');
-        setEmail(parsed.email || '');
-        setPassword(parsed.password || '');
+    const loadProfile = async () => {
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        Alert.alert('Not Logged In', 'Please log in first.');
+        if (onLogout) onLogout();
+        return;
+      }
+
+      try {
+        const uid = currentUser.uid;
+        const docRef = doc(db, 'users', uid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserData(data);
+          setName(data.name || '');
+          setEmail(data.email || '');
+        } else {
+          // Create new Firestore doc if missing
+          const newData = {
+            name: currentUser.displayName || '',
+            email: currentUser.email || '',
+          };
+          await setDoc(doc(db, 'users', uid), newData);
+          setUserData(newData);
+          setName(newData.name);
+          setEmail(newData.email);
+        }
+      } catch (err) {
+        console.error('Failed to load profile:', err);
+        Alert.alert('Error', 'Failed to load profile. Check console.');
       }
     };
-    loadUser();
+
+    loadProfile();
   }, []);
 
   const handleSave = async () => {
@@ -43,31 +68,29 @@ export default function ProfileScreen({ onLogout }) {
       return;
     }
 
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      Alert.alert('Not Logged In', 'Cannot update profile.');
+      return;
+    }
+
     try {
       // Update Firebase Auth
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, { displayName: name });
-        if (auth.currentUser.email !== email) {
-          await updateEmail(auth.currentUser, email);
-        }
-        if (password) {
-          await updatePassword(auth.currentUser, password);
-        }
-
-        // Update Firestore user document
-        const userRef = doc(db, 'users', auth.currentUser.uid);
-        await setDoc(
-          userRef,
-          { name, email },
-          { merge: true }
-        );
+      await updateProfile(currentUser, { displayName: name });
+      if (currentUser.email !== email) {
+        await updateEmail(currentUser, email);
+      }
+      if (password) {
+        await updatePassword(currentUser, password);
       }
 
-      // Update local AsyncStorage
-      const updatedUser = { name, email, password };
-      await AsyncStorage.setItem('loggedInUser', JSON.stringify(updatedUser));
-      setUser(updatedUser);
+      // Update Firestore
+      const uid = currentUser.uid;
+      await setDoc(doc(db, 'users', uid), { name, email }, { merge: true });
+
+      setUserData({ name, email });
       setEditing(false);
+      setPassword('');
 
       Alert.alert('Success', 'Profile updated');
     } catch (err) {
@@ -77,11 +100,13 @@ export default function ProfileScreen({ onLogout }) {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('loggedInUser');
+    if (auth.currentUser) {
+      await auth.signOut();
+    }
     if (onLogout) onLogout();
   };
 
-  if (!user) {
+  if (!userData) {
     return (
       <SafeAreaView style={styles.container}>
         <Text style={styles.empty}>Loading profile...</Text>
@@ -95,16 +120,16 @@ export default function ProfileScreen({ onLogout }) {
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {user.name ? user.name.charAt(0).toUpperCase() : '?'}
+            {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
           </Text>
         </View>
-        <Text style={styles.profileName}>{user.name || 'Unnamed User'}</Text>
+        <Text style={styles.profileName}>{userData.name || 'Unnamed User'}</Text>
       </View>
 
       {!editing ? (
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Email</Text>
-          <Text style={styles.cardValue}>{user.email || 'No email set'}</Text>
+          <Text style={styles.cardValue}>{userData.email || 'No email set'}</Text>
 
           <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
             <Text style={styles.buttonText}>Edit Profile</Text>

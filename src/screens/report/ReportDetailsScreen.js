@@ -1,4 +1,4 @@
-// src/screens/report/ReportDetailsScreen.js
+//ReportDetailsScreen.js
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar } from 'react-native';
 

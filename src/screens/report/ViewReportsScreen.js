@@ -1,4 +1,4 @@
-// src/screens/report/ViewReportsScreen.js
+//ViewReportsScreen.js
 import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 import { db } from '../../services/firebase';
@@ -13,17 +13,17 @@ export default function ViewReportsScreen({ navigation }) {
   useEffect(() => {
     const loadUserAndReports = async () => {
       try {
-        // Load logged-in user
+        //Load logged-in user
         const storedUser = await AsyncStorage.getItem('loggedInUser');
         const parsedUser = storedUser ? JSON.parse(storedUser) : null;
         setUserName(parsedUser?.name);
 
-        // Fetch all reports
+        //Fetch all reports
         const q = query(collection(db, 'reports'), orderBy('timestamp', 'desc'));
         const snapshot = await getDocs(q);
         const allReports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-        // Filter by current user
+        //Filter by current user
         const userReports = allReports.filter(r => r.userName === parsedUser?.name);
         setReports(userReports);
       } catch (err) {
