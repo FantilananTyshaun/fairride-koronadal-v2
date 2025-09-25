@@ -21,8 +21,8 @@ export default function CalculateFareScreen() {
 
   const [location, setLocation] = useState(null);
   const [prev, setPrev] = useState(null);
-  const [distanceOutside, setDistanceOutside] = useState(0);
-  const [fare, setFare] = useState(0);
+  const [distanceOutside, setDistanceOutside] = useState(0); // tracked live
+  const [fare, setFare] = useState(0);                       // final fare shown only after End Ride
   const [tracking, setTracking] = useState(false);
   const [routeCoords, setRouteCoords] = useState([]);
   const [baseFare, setBaseFare] = useState(15);
@@ -30,15 +30,13 @@ export default function CalculateFareScreen() {
 
   const [startedInside, setStartedInside] = useState(false);
   const [enteredDowntown, setEnteredDowntown] = useState(false);
-  const [exitedDowntown, setExitedDowntown] = useState(false);
-  const [fareFrozen, setFareFrozen] = useState(false);
 
   const [user, setUser] = useState(null); // Logged-in user
-
   const watchRef = useRef(null);
 
-  const MIN_DISTANCE_METERS = 3; // ignore small GPS noise
+  const MIN_DISTANCE_METERS = 3;
 
+  // --- Downtown Zone ---
   const downtownCoords = [
     { latitude: 6.506284667483129, longitude: 124.83915594038785 },
     { latitude: 6.494151873410396, longitude: 124.85156390970461 },
@@ -66,7 +64,7 @@ export default function CalculateFareScreen() {
 
   const getDowntownRadius = () => {
     const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371; // km
+    const R = 6371;
     const distances = downtownCoords.map((c) => {
       const dLat = toRad(c.latitude - center.latitude);
       const dLon = toRad(c.longitude - center.longitude);
@@ -76,13 +74,13 @@ export default function CalculateFareScreen() {
           Math.cos(toRad(c.latitude)) *
           Math.sin(dLon / 2) ** 2;
       const cAngle = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * cAngle * 1000; // meters
+      return R * cAngle * 1000;
     });
     return Math.max(...distances);
   };
-
   const downtownRadius = getDowntownRadius();
 
+  // Load fare rates + logged in user
   useEffect(() => {
     const fetchFareRates = async () => {
       try {
@@ -140,12 +138,11 @@ export default function CalculateFareScreen() {
       return;
     }
 
+    // Reset states
     setDistanceOutside(0);
     setFare(0);
     setRouteCoords([]);
     setEnteredDowntown(false);
-    setExitedDowntown(false);
-    setFareFrozen(false);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -159,18 +156,17 @@ export default function CalculateFareScreen() {
 
     const inside = isInsideDowntown(currentLoc.coords);
     setStartedInside(inside);
-    setFare(inside ? baseFare : 0);
 
     setLocation(currentLoc.coords);
     setPrev(currentLoc.coords);
     setRouteCoords([currentLoc.coords]);
 
+    // Track ONLY distance outside
     watchRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Highest,
         timeInterval: 1000,
         distanceInterval: 1,
-        mayShowUserSettingsDialog: true,
       },
       (loc) => {
         setLocation(loc.coords);
@@ -194,36 +190,14 @@ export default function CalculateFareScreen() {
 
         setDistanceOutside((d) => {
           let updated = d;
-          let newFare = fare;
-
-          // ----------- Updated Fare Logic -----------
-          if (!startedInside) {
-            // Start outside
-            if (!insidePrev && !insideCurrent) {
-              updated = d + distKm;
-              newFare = updated * perKmRate;
-            }
-            if (!enteredDowntown && insideCurrent) {
-              setEnteredDowntown(true);
-              newFare += baseFare; // Add 15 once
-            }
-          } else {
-            // Start inside
-            if (!insidePrev && !insideCurrent && exitedDowntown) {
-              updated = d + distKm;
-              newFare = baseFare + updated * perKmRate;
-            }
-            if (!exitedDowntown && !insideCurrent) {
-              setExitedDowntown(true);
-              updated = d + distKm;
-              newFare = baseFare + updated * perKmRate;
-            }
+          if (!insidePrev && !insideCurrent) {
+            updated = d + distKm; // count only when outside
           }
-          // ----------------------------------------
-
-          setFare(newFare);
           return updated;
         });
+
+        // Track if rider ever entered downtown
+        if (!enteredDowntown && insideCurrent) setEnteredDowntown(true);
 
         setPrev(loc.coords);
         setRouteCoords((c) => [...c, loc.coords]);
@@ -245,23 +219,41 @@ export default function CalculateFareScreen() {
     }
     setTracking(false);
 
+    // ---- Fare Calculation Only Here ----
+    let finalFare = 0;
+    if (startedInside && !enteredDowntown) {
+      // started inside & stayed inside
+      finalFare = baseFare;
+    } else if (startedInside && enteredDowntown) {
+      // inside then outside
+      finalFare = baseFare + distanceOutside * perKmRate;
+    } else if (!startedInside && !enteredDowntown) {
+      // outside only
+      finalFare = distanceOutside * perKmRate;
+    } else if (!startedInside && enteredDowntown) {
+      // outside then entered (may end inside or outside)
+      finalFare = baseFare + distanceOutside * perKmRate;
+    }
+
+    setFare(Math.round(finalFare));
+    // -------------------------------------
+
     const trip = {
       start: routeCoords[0],
       end: routeCoords[routeCoords.length - 1],
       distanceOutside: distanceOutside.toFixed(2),
-      fare: Math.round(fare),
+      fare: Math.round(finalFare),
       timestamp: new Date().toISOString(),
       routeCoords,
     };
 
     try {
       await saveTripToFirebase(trip, user.uid);
-
       const stored = await AsyncStorage.getItem('trips');
       const trips = stored ? JSON.parse(stored) : [];
       trips.unshift(trip);
       await AsyncStorage.setItem('trips', JSON.stringify(trips));
-      Alert.alert('Success', 'Trip saved successfully!');
+      Alert.alert('Ride Ended', `Total Fare: ₱${Math.round(finalFare)}`);
     } catch (err) {
       Alert.alert('Error', 'Failed to save trip.');
       console.error(err);

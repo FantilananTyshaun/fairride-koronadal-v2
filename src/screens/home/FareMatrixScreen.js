@@ -31,7 +31,6 @@ export default function FareMatrixScreen() {
         setLoading(false);
       }
     };
-
     fetchFareMatrix();
   }, []);
 
@@ -56,15 +55,62 @@ export default function FareMatrixScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       {fareMatrix.map(item => (
         <View key={item.id} style={styles.card}>
-          {Object.entries(item).map(([key, value]) => {
-            if (key === 'id') return null; // skip internal id
-            return (
-              <View style={styles.row} key={key}>
-                <Text style={styles.label}>{key}:</Text>
-                <Text style={styles.value}>{value}</Text>
-              </View>
-            );
-          })}
+          {/* Zone Name */}
+          <Text style={styles.zoneName}>{item.zoneName || 'Unnamed Zone'}</Text>
+          <View style={styles.separator} />
+
+          {/* Kindergarten Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Kindergarten Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.kindergartenFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* PWD Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>PWD Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.pwdFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* Regular Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Regular Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.regularFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* Student College Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Student College Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.studentCollegeFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* Student Elementary Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Student Elementary Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.studentElemFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* Student High School Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Student High School Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.studentHighSchoolFare ?? 'N/A'}
+            </Text>
+          </View>
         </View>
       ))}
     </ScrollView>
@@ -87,20 +133,36 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  zoneName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: 'black',
+    marginBottom: 8,
+    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',
-    marginBottom: 6,
+    justifyContent: 'space-between',
+    marginVertical: 4,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#ccc',
+    marginVertical: 6,
   },
   label: {
     fontWeight: 'bold',
     color: 'black',
-    marginRight: 6,
-    textTransform: 'capitalize',
+    fontSize: 16,
   },
   value: {
     color: 'black',
+    fontSize: 16,
     flexShrink: 1,
+    textAlign: 'right',
   },
 });
