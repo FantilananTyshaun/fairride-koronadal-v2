@@ -1,6 +1,13 @@
 //ReportDetailsScreen.js
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Platform, StatusBar } from 'react-native';
+import {
+  Text,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  Platform,
+  StatusBar,
+} from 'react-native';
 
 export default function ReportDetailsScreen({ route }) {
   const { report } = route.params;
@@ -22,7 +29,9 @@ export default function ReportDetailsScreen({ route }) {
         <Text style={styles.value}>{report.mtopNumber || 'N/A'}</Text>
 
         <Text style={styles.label}>Description</Text>
-        <Text style={styles.value}>{report.description || 'No description'}</Text>
+        <Text style={styles.value}>
+          {report.description || 'No description'}
+        </Text>
 
         <Text style={styles.label}>Date & Time</Text>
         <Text style={styles.value}>{formattedDate}</Text>

@@ -1,11 +1,10 @@
-// src/navigation/HistoryStack.js
+//HistoryStack.js
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HistoryScreen from '../screens/history/HistoryScreen';
 import TripDetailsScreen from '../screens/history/TripDetailsScreen';
 
 const Stack = createNativeStackNavigator();
-
 export default function HistoryStack() {
   return (
     <Stack.Navigator>
@@ -24,4 +23,4 @@ export default function HistoryStack() {
       />
     </Stack.Navigator>
   );
-}
+} 

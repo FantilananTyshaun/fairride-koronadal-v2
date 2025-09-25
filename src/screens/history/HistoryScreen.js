@@ -1,3 +1,4 @@
+//HistoryScreen.js
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, StatusBar, Dimensions } from 'react-native';
 import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
   tripText: { fontWeight: 'bold', color: 'black', marginBottom: 5 },
   noTripsText: { textAlign: 'center', marginTop: 20, fontSize: 16, color: 'black' },
   miniMap: {
-    width: width - 40, // match container width
+    width: width - 40,
     height: 150,
     marginTop: 10,
     borderRadius: 10,

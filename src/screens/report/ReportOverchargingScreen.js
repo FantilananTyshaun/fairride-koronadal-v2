@@ -1,7 +1,6 @@
 //ReportOverchargingScreen.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  View,
   Text,
   TextInput,
   TouchableOpacity,
@@ -12,24 +11,13 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { db } from '../../services/firebase';
+import { db, auth } from '../../services/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function ReportOverchargingScreen({ navigation }) {
   const [mtopNumber, setMtopNumber] = useState('');
   const [description, setDescription] = useState('');
-  const [user, setUser] = useState(null);
 
-  //Load logged in user
-  useEffect(() => {
-    (async () => {
-      const storedUser = await AsyncStorage.getItem('loggedInUser');
-      if (storedUser) setUser(JSON.parse(storedUser));
-    })();
-  }, []);
-
-  //Submit report to "reports" collection
   const handleSubmit = async () => {
     if (!mtopNumber || !description) {
       Alert.alert('Required', 'Please fill out all fields.');
@@ -42,12 +30,15 @@ export default function ReportOverchargingScreen({ navigation }) {
         mtopNumber,
         description,
         timestamp: serverTimestamp(),
-        userName: user?.name || 'Anonymous',
+        userId: auth.currentUser?.uid || null,
+        userName:
+          auth.currentUser?.displayName ||
+          auth.currentUser?.email ||
+          'Anonymous',
       });
 
       Alert.alert('Report Saved', 'Your report has been uploaded.');
 
-      // Reset form
       setMtopNumber('');
       setDescription('');
     } catch (err) {
@@ -87,7 +78,9 @@ export default function ReportOverchargingScreen({ navigation }) {
           style={styles.secondaryButton}
           onPress={() => navigation.navigate('ViewReports')}
         >
-          <Text style={styles.secondaryButtonText}>View Submitted Reports</Text>
+          <Text style={styles.secondaryButtonText}>
+            View Submitted Reports
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

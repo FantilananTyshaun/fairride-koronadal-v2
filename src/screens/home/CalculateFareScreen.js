@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Platform,
   StatusBar,
-  Alert,
+
 } from 'react-native';
 import MapView, { Marker, Polyline, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -30,23 +30,30 @@ export default function CalculateFareScreen({ navigation }) {
   const [user, setUser] = useState(null);
   const watchRef = useRef(null);
 
+  const smoothedCoordsRef = useRef([]); // store last few coords
+  const SMOOTHING_WINDOW = 5;
   const MIN_DISTANCE_METERS = 3;
 
-  // Downtown zone coordinates
-  const downtownCoords = [
+  // DOWNTOWN ZONE COORDINATES
+const downtownCoords = [
+    //BRGY ZONE 1 COORDINATES
     { latitude: 6.506284667483129, longitude: 124.83915594038785 },
+    //BRGY ZONE 2 COORDINATES
     { latitude: 6.494151873410396, longitude: 124.85156390970461 },
     { latitude: 6.496278700668861, longitude: 124.85311130455793 },
+    //BRGY ZONE 3 COORDINATES
     { latitude: 6.492243244226249, longitude: 124.83718248853992 },
     { latitude: 6.4907578984498615, longitude: 124.83968128852665 },
     { latitude: 6.488672181593102, longitude: 124.84278238356796 },
     { latitude: 6.491779593867804, longitude: 124.84526074460867 },
     { latitude: 6.49301505462528, longitude: 124.85169270085113 },
+    //BRGY ZONE 4 COORDINATES
     { latitude: 6.492083671671429, longitude: 124.83546783493742 },
     { latitude: 6.496070832431574, longitude: 124.83547630970435 },
     { latitude: 6.501709229558065, longitude: 124.83232493853998 },
     { latitude: 6.5050015959388325, longitude: 124.83514997263975 },
     { latitude: 6.506351101272501, longitude: 124.83632162717356 },
+    //BRGY GENERAL PAULINO SANTOS COORDINATES
     { latitude: 6.501391412382966, longitude: 124.85259742504603 },
     { latitude: 6.508395590208718, longitude: 124.85018178531979 },
   ];
@@ -101,6 +108,21 @@ export default function CalculateFareScreen({ navigation }) {
     return R * c;
   };
 
+  // smoothing function
+  const smoothLocation = (newCoord) => {
+    smoothedCoordsRef.current.push(newCoord);
+    if (smoothedCoordsRef.current.length > SMOOTHING_WINDOW) {
+      smoothedCoordsRef.current.shift();
+    }
+    const avgLat =
+      smoothedCoordsRef.current.reduce((sum, c) => sum + c.latitude, 0) /
+      smoothedCoordsRef.current.length;
+    const avgLon =
+      smoothedCoordsRef.current.reduce((sum, c) => sum + c.longitude, 0) /
+      smoothedCoordsRef.current.length;
+    return { latitude: avgLat, longitude: avgLon };
+  };
+
   useEffect(() => {
     const fetchFareRates = async () => {
       try {
@@ -140,36 +162,53 @@ export default function CalculateFareScreen({ navigation }) {
     setFare(0);
     setRouteCoords([]);
     setEnteredDowntown(false);
+    smoothedCoordsRef.current = [];
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return alert('Location permission required.');
 
-    const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-    setStartedInside(isInsideDowntown(currentLoc.coords));
-    setLocation(currentLoc.coords);
-    setPrev(currentLoc.coords);
-    setRouteCoords([currentLoc.coords]);
+    const currentLoc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+    });
+    const smoothedStart = smoothLocation(currentLoc.coords);
+
+    setStartedInside(isInsideDowntown(smoothedStart));
+    setLocation(smoothedStart);
+    setPrev(smoothedStart);
+    setRouteCoords([smoothedStart]);
 
     watchRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 1 },
+      {
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: 1000,
+        distanceInterval: 1,
+      },
       (loc) => {
-        setLocation(loc.coords);
+        const smoothedCoord = smoothLocation(loc.coords);
+        setLocation(smoothedCoord);
         if (!prev) {
-          setPrev(loc.coords);
-          setRouteCoords(c => [...c, loc.coords]);
+          setPrev(smoothedCoord);
+          setRouteCoords((c) => [...c, smoothedCoord]);
           return;
         }
-        const distMeters = getDistanceMeters(prev.latitude, prev.longitude, loc.coords.latitude, loc.coords.longitude);
+        const distMeters = getDistanceMeters(
+          prev.latitude,
+          prev.longitude,
+          smoothedCoord.latitude,
+          smoothedCoord.longitude
+        );
         if (distMeters < MIN_DISTANCE_METERS) return;
 
         const insidePrev = isInsideDowntown(prev);
-        const insideCurrent = isInsideDowntown(loc.coords);
+        const insideCurrent = isInsideDowntown(smoothedCoord);
         const distKm = distMeters / 1000;
 
-        setDistanceOutside(d => (!insidePrev && !insideCurrent ? d + distKm : d));
+        setDistanceOutside((d) =>
+          !insidePrev && !insideCurrent ? d + distKm : d
+        );
         if (!enteredDowntown && insideCurrent) setEnteredDowntown(true);
-        setPrev(loc.coords);
-        setRouteCoords(c => [...c, loc.coords]);
+        setPrev(smoothedCoord);
+        setRouteCoords((c) => [...c, smoothedCoord]);
       }
     );
 
@@ -183,13 +222,21 @@ export default function CalculateFareScreen({ navigation }) {
       watchRef.current = null;
     }
     setTracking(false);
+//Logic in calculating fare 
+let finalFare = 0;
 
-    let finalFare = 0;
-    if (startedInside) {
-      finalFare = enteredDowntown ? baseFare + distanceOutside * perKmRate : baseFare;
-    } else {
-      finalFare = enteredDowntown ? baseFare + distanceOutside * perKmRate : distanceOutside * perKmRate;
-    }
+// If the ride started inside downtown
+if (startedInside) {
+  finalFare = enteredDowntown
+    ? baseFare + distanceOutside * perKmRate // entered downtown → FINAL FARE = base fare + outside distance fare
+    : baseFare;                              // stayed inside downtown → FINAL FARE = base fare only (15 PHP)
+} else {
+  // If the ride started outside downtown
+  finalFare = enteredDowntown
+    ? baseFare + distanceOutside * perKmRate // entered downtown → FINAL FARE = base fare + outside distance
+    : distanceOutside * perKmRate;           // never entered downtown → FINAL FARE = outside distance fare
+}
+
 
     setFare(Math.round(finalFare));
 
@@ -222,12 +269,9 @@ export default function CalculateFareScreen({ navigation }) {
           longitudeDelta: 0.02,
         }}
       >
-        {/* Start Marker */}
         {routeCoords.length > 0 && (
           <Marker coordinate={routeCoords[0]} pinColor="green" title="Start" />
         )}
-
-        {/* Current/End Marker */}
         {routeCoords.length > 1 && (
           <Marker
             coordinate={routeCoords[routeCoords.length - 1]}
@@ -235,24 +279,26 @@ export default function CalculateFareScreen({ navigation }) {
             title="Current / End"
           />
         )}
-
-        {/* Travel Path */}
         {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="green" />
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={4}
+            strokeColor="green"
+          />
         )}
-
-        {/* Downtown Circle */}
         <Circle
           center={center}
           radius={downtownRadius}
           strokeColor="green"
           strokeWidth={2}
-          fillColor="rgba(0,255,0,0.1)" // Slightly transparent green fill
+          fillColor="rgba(0,255,0,0.1)"
         />
       </MapView>
 
       <View style={styles.controls}>
-        <Text style={styles.info}>Distance Outside Downtown: {distanceOutside.toFixed(2)} km</Text>
+        <Text style={styles.info}>
+          Distance Outside Downtown: {distanceOutside.toFixed(2)} km
+        </Text>
         <Text style={styles.info}>Fare: ₱{Math.round(fare)}</Text>
 
         {!tracking ? (

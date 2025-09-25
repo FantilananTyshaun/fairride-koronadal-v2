@@ -22,7 +22,7 @@ export default function ReportStack() {
       <Stack.Screen
         name="ReportOvercharging"
         component={ReportOverchargingScreen}
-        options={{ title: 'Report Overcharging' }} // show header here
+        options={{ title: 'Report Overcharging' }}
       />
       <Stack.Screen
         name="ViewReports"

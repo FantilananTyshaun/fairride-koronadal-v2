@@ -1,4 +1,4 @@
-// ProfileScreen.js
+//ProfileScreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Platform,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { auth, db } from '../../services/firebase';
 import { updateProfile, updateEmail, updatePassword } from 'firebase/auth';
@@ -21,6 +22,7 @@ export default function ProfileScreen({ onLogout }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -43,7 +45,7 @@ export default function ProfileScreen({ onLogout }) {
           setName(data.name || '');
           setEmail(data.email || '');
         } else {
-          // Create new Firestore doc if missing
+          // Create Firestore user doc if missing
           const newData = {
             name: currentUser.displayName || '',
             email: currentUser.email || '',
@@ -55,7 +57,9 @@ export default function ProfileScreen({ onLogout }) {
         }
       } catch (err) {
         console.error('Failed to load profile:', err);
-        Alert.alert('Error', 'Failed to load profile. Check console.');
+        Alert.alert('Error', 'Failed to load profile.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -69,10 +73,7 @@ export default function ProfileScreen({ onLogout }) {
     }
 
     const currentUser = auth.currentUser;
-    if (!currentUser) {
-      Alert.alert('Not Logged In', 'Cannot update profile.');
-      return;
-    }
+    if (!currentUser) return;
 
     try {
       // Update Firebase Auth
@@ -91,8 +92,7 @@ export default function ProfileScreen({ onLogout }) {
       setUserData({ name, email });
       setEditing(false);
       setPassword('');
-
-      Alert.alert('Success', 'Profile updated');
+      Alert.alert('Success', 'Profile updated!');
     } catch (err) {
       console.error('Error updating profile:', err);
       Alert.alert('Update Failed', err.message);
@@ -106,17 +106,25 @@ export default function ProfileScreen({ onLogout }) {
     if (onLogout) onLogout();
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ActivityIndicator size="large" color="green" />
+      </SafeAreaView>
+    );
+  }
+
   if (!userData) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.empty}>Loading profile...</Text>
+        <Text style={styles.empty}>No profile found</Text>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Profile Header */}
+      {/* Avatar + Name */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
@@ -131,8 +139,8 @@ export default function ProfileScreen({ onLogout }) {
           <Text style={styles.cardLabel}>Email</Text>
           <Text style={styles.cardValue}>{userData.email || 'No email set'}</Text>
 
-          <TouchableOpacity style={styles.button} onPress={() => setEditing(true)}>
-            <Text style={styles.buttonText}>Edit Profile</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
+            <Text style={styles.primaryButtonText}>Edit Profile</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -170,20 +178,17 @@ export default function ProfileScreen({ onLogout }) {
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Enter password"
+              placeholder="Enter new password"
               secureTextEntry
               placeholderTextColor="#888"
             />
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleSave}>
-            <Text style={styles.buttonText}>Save Changes</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
+            <Text style={styles.primaryButtonText}>Save Changes</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => setEditing(false)}
-          >
+          <TouchableOpacity style={styles.cancelButton} onPress={() => setEditing(false)}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </View>
@@ -208,7 +213,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: '#333',
+    backgroundColor: 'green',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
@@ -264,31 +269,25 @@ const styles = StyleSheet.create({
     color: 'black',
     fontSize: 16,
   },
-  button: {
-    backgroundColor: '#E6F5E6',
+  primaryButton: {
+    backgroundColor: 'green',
     padding: 14,
     borderRadius: 10,
-    borderColor: 'black',
-    borderWidth: 1,
     alignItems: 'center',
     marginTop: 8,
-    width: 200,
-    alignSelf: 'center',
   },
-  buttonText: {
-    color: 'black',
+  primaryButtonText: {
+    color: 'white',
     fontWeight: 'bold',
     fontSize: 16,
   },
   cancelButton: {
     marginTop: 12,
     padding: 12,
-    width: 200,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: 'black',
     backgroundColor: '#fff',
-    alignSelf: 'center',
     alignItems: 'center',
   },
   cancelText: {
@@ -299,16 +298,13 @@ const styles = StyleSheet.create({
   logoutButton: {
     padding: 14,
     marginTop: 24,
-    width: 200,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'black',
+    borderColor: 'red',
     borderRadius: 10,
-    alignSelf: 'center',
     alignItems: 'center',
   },
   logoutText: {
-    color: 'black',
+    color: 'red',
     fontWeight: 'bold',
     fontSize: 16,
   },

@@ -1,14 +1,14 @@
+//App.js
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './src/services/firebase';
 
-import CalculateFareScreen from './src/screens/home/CalculateFareScreen';
-import HistoryScreen from './src/screens/history/HistoryScreen';
 import ReportStack from './src/navigation/ReportStack';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
@@ -22,31 +22,22 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   const [user, setUser] = useState(null);
 
+  // 🔹 Watch Firebase authentication state
   useEffect(() => {
-    const loadUser = async () => {
-      const storedUser = await AsyncStorage.getItem('loggedInUser');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    };
-    loadUser();
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+    });
+    return unsubscribe; // cleanup listener
   }, []);
 
-  const handleLogin = async (userData) => {
-    await AsyncStorage.setItem('loggedInUser', JSON.stringify(userData));
-    setUser(userData);
-  };
-
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('loggedInUser');
+    await signOut(auth);
     setUser(null);
   };
 
   const AuthStack = () => (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login">
-        {(props) => <LoginScreen {...props} onLogin={handleLogin} />}
-      </Stack.Screen>
+      <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>
   );
@@ -65,7 +56,7 @@ export default function App() {
         tabBarLabelStyle: { fontSize: 14 },
         tabBarActiveTintColor: 'green',
         tabBarInactiveTintColor: 'gray',
-        tabBarIcon: ({ focused, color, size }) => {
+        tabBarIcon: ({ focused, color }) => {
           let iconName;
 
           if (route.name === 'FareCalculator') {
@@ -86,7 +77,7 @@ export default function App() {
         name="FareCalculator"
         component={HomeStack}
         options={{
-          title: 'FareRide Koronadal',
+          title: 'FairRide Koronadal',
           tabBarLabel: 'Home',
         }}
       />

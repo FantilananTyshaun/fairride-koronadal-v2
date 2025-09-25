@@ -1,11 +1,10 @@
-// src/navigation/HomeStack.js
+//HomeStack.js
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack'; // <-- updated import
+import { createNativeStackNavigator } from '@react-navigation/native-stack'; 
 import CalculateFareScreen from '../screens/home/CalculateFareScreen';
 import FareMatrixScreen from '../screens/home/FareMatrixScreen';
 
 const Stack = createNativeStackNavigator();
-
 export default function HomeStack() {
   return (
     <Stack.Navigator>
