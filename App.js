@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './src/services/firebase';
 
-import ReportStack from './src/navigation/ReportStack';
+import ReportStack from './src/navigation/FareStack';
 import LoginScreen from './src/screens/auth/LoginScreen';
 import RegisterScreen from './src/screens/auth/RegisterScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
@@ -92,13 +92,20 @@ export default function App() {
       />
 
       <Tab.Screen
-        name="Report"
-        component={ReportStack}
-        options={{
-          headerShown: false,
-          tabBarLabel: 'Report',
-        }}
+  name="FareMatrix"
+  component={ReportStack}
+  options={{
+    headerShown: false,
+    tabBarLabel: 'Fare Matrix',
+    tabBarIcon: ({ focused, color }) => (
+      <Ionicons
+        name={focused ? 'help-circle' : 'help-circle-outline'}
+        size={22}
+        color={color}
       />
+    ),
+  }}
+/>
 
       <Tab.Screen
         name="Profile"

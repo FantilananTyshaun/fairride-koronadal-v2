@@ -16,7 +16,7 @@ import { getDistance } from "geolib";
 import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
 
-const GOOGLE_API_KEY = "paste the new one"; // replace with your Google API Key
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your Google API Key
 
 export default function CalculateFareScreen({ navigation }) {
   const [location, setLocation] = useState(null);

@@ -2,7 +2,6 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack'; 
 import CalculateFareScreen from '../screens/home/CalculateFareScreen';
-import FareMatrixScreen from '../screens/home/FareMatrixScreen';
 
 const Stack = createNativeStackNavigator();
 export default function HomeStack() {
@@ -12,11 +11,6 @@ export default function HomeStack() {
         name="CalculateFare" 
         component={CalculateFareScreen} 
         options={{ headerShown: false }}
-      />
-      <Stack.Screen 
-        name="FareMatrix" 
-        component={FareMatrixScreen} 
-        options={{ title: 'Fare Matrix' }}
       />
     </Stack.Navigator>
   );

@@ -1,11 +1,13 @@
 // src/screens/history/TripDetailsScreen.js
 import React, { useRef, useEffect } from "react";
-import { View, Text, StyleSheet, Platform, StatusBar } from "react-native";
+import { View, Text, StyleSheet, Platform, StatusBar, TouchableOpacity } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
+import { useNavigation } from "@react-navigation/native";
 
 export default function TripDetailsScreen({ route }) {
   const { trip } = route.params;
   const mapRef = useRef(null);
+  const navigation = useNavigation();
 
   // Ensure coordinates are numbers
   const routeCoords = (trip?.routeCoords || []).map((p) => ({
@@ -60,6 +62,19 @@ export default function TripDetailsScreen({ route }) {
         <Text style={styles.infoText}>Distance: {trip?.distance || 0} km</Text>
         <Text style={styles.infoText}>Destination: {trip?.destinationInput || "N/A"}</Text>
         <Text style={styles.infoText}>MTOP #: {trip?.mtopNumber || "N/A"}</Text>
+
+        {/* 🚨 Report Button */}
+        <TouchableOpacity
+          style={styles.reportButton}
+          onPress={() =>
+            navigation.navigate("ReportOvercharging", {
+              mtopNumber: trip?.mtopNumber || "",
+              tripId: trip?.id || null,
+            })
+          }
+        >
+          <Text style={styles.reportButtonText}>Report Overcharging</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -81,4 +96,21 @@ const styles = StyleSheet.create({
     borderColor: "black",
   },
   infoText: { fontSize: 16, fontWeight: "bold", marginBottom: 6, color: "black" },
+
+  // 🚨 New Styles
+  reportButton: {
+    marginTop: 12,
+    backgroundColor: "#F8D7DA",
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "black",
+    alignItems: "center",
+    width: "100%",
+  },
+  reportButtonText: {
+    color: "black",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });
