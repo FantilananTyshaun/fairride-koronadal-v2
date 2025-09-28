@@ -1,7 +1,7 @@
-// src/screens/home/TripDetailsScreen.js
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Platform, StatusBar } from 'react-native';
-import MapView, { Marker, Polyline } from 'react-native-maps';
+// src/screens/history/TripDetailsScreen.js
+import React, { useRef, useEffect } from "react";
+import { View, Text, StyleSheet, Platform, StatusBar } from "react-native";
+import MapView, { Marker, Polyline } from "react-native-maps";
 
 export default function TripDetailsScreen({ route }) {
   const { trip } = route.params;
@@ -15,15 +15,13 @@ export default function TripDetailsScreen({ route }) {
 
   const startCoord = trip?.start
     ? { latitude: Number(trip.start.latitude), longitude: Number(trip.start.longitude) }
-    : routeCoords[0] || { latitude: 6.496, longitude: 124.840 };
+    : routeCoords[0] || { latitude: 6.496, longitude: 124.84 };
 
   const endCoord = trip?.end
     ? { latitude: Number(trip.end.latitude), longitude: Number(trip.end.longitude) }
     : routeCoords[routeCoords.length - 1] || null;
 
-  const tripDate = trip?.timestamp
-    ? new Date(trip.timestamp)
-    : new Date();
+  const tripDate = trip?.timestamp ? new Date(trip.timestamp) : new Date();
 
   useEffect(() => {
     if (mapRef.current && routeCoords.length > 0) {
@@ -46,41 +44,41 @@ export default function TripDetailsScreen({ route }) {
           longitudeDelta: 0.02,
         }}
       >
-        {/* Start Marker */}
         {startCoord && <Marker coordinate={startCoord} pinColor="green" title="Start" />}
-        {/* End Marker */}
         {endCoord && <Marker coordinate={endCoord} pinColor="red" title="End" />}
-        {/* Route Polyline */}
         {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeColor="green" strokeWidth={4} />
+          <Polyline coordinates={routeCoords} strokeColor="blue" strokeWidth={4} />
         )}
       </MapView>
 
       <View style={styles.infoContainer}>
         <Text style={styles.infoText}>Date: {tripDate.toLocaleString()}</Text>
-        <Text style={styles.infoText}>Fare: ₱{trip?.fare || 0}</Text>
-        <Text style={styles.infoText}>
-          Distance outside downtown: {trip?.distanceOutside || 0} km
-        </Text>
+        <Text style={styles.infoText}>Final Fare: ₱{trip?.finalFare || 0}</Text>
+        <Text style={styles.infoText}>HS/College/PWD: ₱{trip?.fares?.highschool || 0}</Text>
+        <Text style={styles.infoText}>Elementary: ₱{trip?.fares?.elementary || 0}</Text>
+        <Text style={styles.infoText}>Kinder: ₱{trip?.fares?.kinder || 0}</Text>
+        <Text style={styles.infoText}>Distance: {trip?.distance || 0} km</Text>
+        <Text style={styles.infoText}>Destination: {trip?.destinationInput || "N/A"}</Text>
+        <Text style={styles.infoText}>MTOP #: {trip?.mtopNumber || "N/A"}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  container: { flex: 1, paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0 },
   map: { flex: 1 },
   infoContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 20,
     right: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'black',
+    borderColor: "black",
   },
-  infoText: { fontSize: 16, fontWeight: 'bold', marginBottom: 8, color: 'black' },
+  infoText: { fontSize: 16, fontWeight: "bold", marginBottom: 6, color: "black" },
 });

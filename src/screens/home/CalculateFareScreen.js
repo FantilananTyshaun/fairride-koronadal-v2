@@ -1,143 +1,127 @@
 // src/screens/home/CalculateFareScreen.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   Platform,
   StatusBar,
+  FlatList,
+} from "react-native";
+import MapView, { Marker, Polyline } from "react-native-maps";
+import * as Location from "expo-location";
+import { getDistance } from "geolib";
+import { saveTripToFirebase } from "../../services/tripService";
+import { getAuth } from "firebase/auth";
 
-} from 'react-native';
-import MapView, { Marker, Polyline, Circle } from 'react-native-maps';
-import * as Location from 'expo-location';
-import { saveTripToFirebase } from '../../services/tripService';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
-import { getAuth } from 'firebase/auth';
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your Google API Key
 
 export default function CalculateFareScreen({ navigation }) {
   const [location, setLocation] = useState(null);
-  const [prev, setPrev] = useState(null);
-  const [distanceOutside, setDistanceOutside] = useState(0);
-  const [fare, setFare] = useState(0);
+  const [destinationText, setDestinationText] = useState("");
+  const [destinationCoords, setDestinationCoords] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [mtop, setMtop] = useState("");
+  const [finalFare, setFinalFare] = useState(null);
+  const [fares, setFares] = useState(null); // ✅ stores all fare breakdown
+  const [estimatedFare, setEstimatedFare] = useState(null);
+  const [estimatedDistance, setEstimatedDistance] = useState(null);
   const [tracking, setTracking] = useState(false);
   const [routeCoords, setRouteCoords] = useState([]);
-  const [baseFare, setBaseFare] = useState(15);
-  const [perKmRate, setPerKmRate] = useState(2);
-  const [startedInside, setStartedInside] = useState(false);
-  const [enteredDowntown, setEnteredDowntown] = useState(false);
+  const [liveDistance, setLiveDistance] = useState(0);
+  const [liveFare, setLiveFare] = useState(0);
   const [user, setUser] = useState(null);
+
   const watchRef = useRef(null);
+  const snapInterval = useRef(null);
 
-  const smoothedCoordsRef = useRef([]); // store last few coords
-  const SMOOTHING_WINDOW = 5;
-  const MIN_DISTANCE_METERS = 3;
-
-  // DOWNTOWN ZONE COORDINATES
-const downtownCoords = [
-    //BRGY ZONE 1 COORDINATES
-    { latitude: 6.506284667483129, longitude: 124.83915594038785 },
-    //BRGY ZONE 2 COORDINATES
-    { latitude: 6.494151873410396, longitude: 124.85156390970461 },
-    { latitude: 6.496278700668861, longitude: 124.85311130455793 },
-    //BRGY ZONE 3 COORDINATES
-    { latitude: 6.492243244226249, longitude: 124.83718248853992 },
-    { latitude: 6.4907578984498615, longitude: 124.83968128852665 },
-    { latitude: 6.488672181593102, longitude: 124.84278238356796 },
-    { latitude: 6.491779593867804, longitude: 124.84526074460867 },
-    { latitude: 6.49301505462528, longitude: 124.85169270085113 },
-    //BRGY ZONE 4 COORDINATES
-    { latitude: 6.492083671671429, longitude: 124.83546783493742 },
-    { latitude: 6.496070832431574, longitude: 124.83547630970435 },
-    { latitude: 6.501709229558065, longitude: 124.83232493853998 },
-    { latitude: 6.5050015959388325, longitude: 124.83514997263975 },
-    { latitude: 6.506351101272501, longitude: 124.83632162717356 },
-    //BRGY GENERAL PAULINO SANTOS COORDINATES
-    { latitude: 6.501391412382966, longitude: 124.85259742504603 },
-    { latitude: 6.508395590208718, longitude: 124.85018178531979 },
-  ];
-
-  const center = {
-    latitude:
-      downtownCoords.reduce((sum, c) => sum + c.latitude, 0) / downtownCoords.length,
-    longitude:
-      downtownCoords.reduce((sum, c) => sum + c.longitude, 0) / downtownCoords.length,
-  };
-
-  const getDowntownRadius = () => {
-    const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371;
-    const distances = downtownCoords.map((c) => {
-      const dLat = toRad(c.latitude - center.latitude);
-      const dLon = toRad(c.longitude - center.longitude);
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(center.latitude)) *
-          Math.cos(toRad(c.latitude)) *
-          Math.sin(dLon / 2) ** 2;
-      const cAngle = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * cAngle * 1000;
-    });
-    return Math.max(...distances);
-  };
-  const downtownRadius = getDowntownRadius();
-
-  const isInsideDowntown = (coords) => {
-    const R = 6371000;
-    const dLat = ((coords.latitude - center.latitude) * Math.PI) / 180;
-    const dLon = ((coords.longitude - center.longitude) * Math.PI) / 180;
-    const lat1 = (center.latitude * Math.PI) / 180;
-    const lat2 = (coords.latitude * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c <= downtownRadius;
-  };
-
-  const getDistanceMeters = (lat1, lon1, lat2, lon2) => {
-    const toRad = (x) => (x * Math.PI) / 180;
-    const R = 6371000;
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) ** 2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // smoothing function
-  const smoothLocation = (newCoord) => {
-    smoothedCoordsRef.current.push(newCoord);
-    if (smoothedCoordsRef.current.length > SMOOTHING_WINDOW) {
-      smoothedCoordsRef.current.shift();
+  // --- Autocomplete ---
+  const fetchSuggestions = async (text) => {
+    setDestinationText(text);
+    if (!text) return setSuggestions([]);
+    try {
+      const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(
+        text
+      )}&key=${GOOGLE_API_KEY}&components=country:ph`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.predictions) setSuggestions(data.predictions);
+    } catch (err) {
+      console.error("Autocomplete error:", err);
     }
-    const avgLat =
-      smoothedCoordsRef.current.reduce((sum, c) => sum + c.latitude, 0) /
-      smoothedCoordsRef.current.length;
-    const avgLon =
-      smoothedCoordsRef.current.reduce((sum, c) => sum + c.longitude, 0) /
-      smoothedCoordsRef.current.length;
-    return { latitude: avgLat, longitude: avgLon };
   };
 
-  useEffect(() => {
-    const fetchFareRates = async () => {
-      try {
-        const docRef = doc(db, 'settings', 'fareRates');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setBaseFare(data.baseFare ?? 15);
-          setPerKmRate(data.perKmRate ?? 2);
-        }
-      } catch (err) {
-        console.error('Failed to fetch fare rates:', err);
-      }
-    };
+  // --- Place Details ---
+  const fetchPlaceDetails = async (placeId, description) => {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
 
+      if (data.result?.geometry?.location) {
+        const loc = data.result.geometry.location;
+        const dest = { latitude: loc.lat, longitude: loc.lng };
+        setDestinationCoords(dest);
+        setDestinationText(description);
+        setSuggestions([]);
+
+        if (location) {
+          const { distanceKm, fare } = await fetchEstimatedFare(location, dest);
+          setEstimatedDistance(distanceKm);
+          setEstimatedFare(fare);
+        }
+      }
+    } catch (err) {
+      console.error("Place details error:", err);
+    }
+  };
+
+  // --- Distance Matrix ---
+  const fetchEstimatedFare = async (start, end) => {
+    try {
+      const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${start.latitude},${start.longitude}&destinations=${end.latitude},${end.longitude}&key=${GOOGLE_API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.rows?.[0]?.elements?.[0]?.distance?.value) {
+        const meters = data.rows[0].elements[0].distance.value;
+        const km = meters / 1000;
+        return {
+          distanceKm: km.toFixed(2),
+          fare: Math.round(km * 2),
+        };
+      }
+    } catch (err) {
+      console.error("Distance Matrix error:", err);
+    }
+    return { distanceKm: null, fare: null };
+  };
+
+  // --- Snap to Roads ---
+  const snapToRoads = async (coords) => {
+    try {
+      if (coords.length < 2) return coords;
+      const path = coords.map((c) => `${c.latitude},${c.longitude}`).join("|");
+      const url = `https://roads.googleapis.com/v1/snapToRoads?path=${path}&interpolate=true&key=${GOOGLE_API_KEY}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.snappedPoints) {
+        return data.snappedPoints.map((p) => ({
+          latitude: p.location.latitude,
+          longitude: p.location.longitude,
+        }));
+      }
+      return coords;
+    } catch (err) {
+      console.error("SnapToRoads error:", err);
+      return coords;
+    }
+  };
+
+  // --- User ---
+  useEffect(() => {
     const fetchUser = () => {
       const auth = getAuth();
       const currentUser = auth.currentUser;
@@ -145,115 +129,129 @@ const downtownCoords = [
         setUser({
           uid: currentUser.uid,
           email: currentUser.email,
-          displayName: currentUser.displayName || '',
+          displayName: currentUser.displayName || "",
         });
-      } else {
-        console.log('No user is logged in');
       }
     };
-
-    fetchFareRates();
     fetchUser();
   }, []);
 
+  // --- Get current location ---
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
+        });
+        setLocation(current.coords);
+      }
+    })();
+  }, []);
+
+  // --- Start Ride ---
   const startRide = async () => {
-    if (!user) return alert('User not logged in.');
-    setDistanceOutside(0);
-    setFare(0);
+    if (!destinationCoords || !mtop)
+      return alert("Please set destination and MTOP first.");
+
     setRouteCoords([]);
-    setEnteredDowntown(false);
-    smoothedCoordsRef.current = [];
+    setLiveDistance(0);
+    setLiveFare(0);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') return alert('Location permission required.');
+    if (status !== "granted") return alert("Location permission required.");
 
     const currentLoc = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Highest,
     });
-    const smoothedStart = smoothLocation(currentLoc.coords);
-
-    setStartedInside(isInsideDowntown(smoothedStart));
-    setLocation(smoothedStart);
-    setPrev(smoothedStart);
-    setRouteCoords([smoothedStart]);
+    setLocation(currentLoc.coords);
+    setRouteCoords([currentLoc.coords]);
 
     watchRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Highest,
-        timeInterval: 1000,
-        distanceInterval: 1,
+        timeInterval: 5000,
+        distanceInterval: 10,
       },
       (loc) => {
-        const smoothedCoord = smoothLocation(loc.coords);
-        setLocation(smoothedCoord);
-        if (!prev) {
-          setPrev(smoothedCoord);
-          setRouteCoords((c) => [...c, smoothedCoord]);
-          return;
-        }
-        const distMeters = getDistanceMeters(
-          prev.latitude,
-          prev.longitude,
-          smoothedCoord.latitude,
-          smoothedCoord.longitude
-        );
-        if (distMeters < MIN_DISTANCE_METERS) return;
-
-        const insidePrev = isInsideDowntown(prev);
-        const insideCurrent = isInsideDowntown(smoothedCoord);
-        const distKm = distMeters / 1000;
-
-        setDistanceOutside((d) =>
-          !insidePrev && !insideCurrent ? d + distKm : d
-        );
-        if (!enteredDowntown && insideCurrent) setEnteredDowntown(true);
-        setPrev(smoothedCoord);
-        setRouteCoords((c) => [...c, smoothedCoord]);
+        setLocation(loc.coords);
+        setRouteCoords((c) => [...c, loc.coords]);
       }
     );
+
+    snapInterval.current = setInterval(async () => {
+      const snapped = await snapToRoads(routeCoords);
+      let total = 0;
+      for (let i = 1; i < snapped.length; i++) {
+        total += getDistance(snapped[i - 1], snapped[i]);
+      }
+      const km = total / 1000;
+      setLiveDistance(km);
+      setLiveFare(Math.round(km * 2));
+    }, 10000);
 
     setTracking(true);
   };
 
+  // --- End Ride ---
   const endRide = async () => {
-    if (!user) return alert('User not logged in.');
     if (watchRef.current) {
       watchRef.current.remove();
       watchRef.current = null;
     }
+    if (snapInterval.current) {
+      clearInterval(snapInterval.current);
+      snapInterval.current = null;
+    }
     setTracking(false);
-//Logic in calculating fare 
-let finalFare = 0;
 
-// If the ride started inside downtown
-if (startedInside) {
-  finalFare = enteredDowntown
-    ? baseFare + distanceOutside * perKmRate // entered downtown → FINAL FARE = base fare + outside distance fare
-    : baseFare;                              // stayed inside downtown → FINAL FARE = base fare only (15 PHP)
-} else {
-  // If the ride started outside downtown
-  finalFare = enteredDowntown
-    ? baseFare + distanceOutside * perKmRate // entered downtown → FINAL FARE = base fare + outside distance
-    : distanceOutside * perKmRate;           // never entered downtown → FINAL FARE = outside distance fare
-}
+    if (routeCoords.length < 2) return alert("Not enough route data.");
 
+    const snapped = await snapToRoads(routeCoords);
+    let traveledMeters = 0;
+    for (let i = 1; i < snapped.length; i++) {
+      traveledMeters += getDistance(snapped[i - 1], snapped[i]);
+    }
+    const traveledKm = traveledMeters / 1000;
 
-    setFare(Math.round(finalFare));
+    const final = Math.round(traveledKm * 2);
+    setFinalFare(final);
+
+    // ✅ Compute other fares
+    const hsFare = Math.max(final - 3, 0);
+    const elemFare = Math.max(hsFare - 2, 0);
+    const kinderFare = Math.max(elemFare - 2, 0);
+    setFares({
+      highschool: hsFare,
+      elementary: elemFare,
+      kinder: kinderFare,
+    });
 
     const trip = {
-      start: routeCoords[0],
-      end: routeCoords[routeCoords.length - 1],
-      distanceOutside: distanceOutside.toFixed(2),
-      fare: Math.round(finalFare),
+      start: snapped[0],
+      end: snapped[snapped.length - 1],
+      destinationInput: destinationText,
+      mtopNumber: mtop,
+      distance: traveledKm.toFixed(2),
+      finalFare: final,
+      fares: {
+        highschool: hsFare,
+        elementary: elemFare,
+        kinder: kinderFare,
+      },
       timestamp: new Date().toISOString(),
-      routeCoords,
+      routeCoords: snapped,
     };
 
     try {
-      await saveTripToFirebase(trip, user.uid);
-      alert(`Ride Ended. Total Fare: ₱${Math.round(finalFare)}`);
+      if (user) {
+        await saveTripToFirebase(trip, user.uid);
+      }
+      alert(
+        `Ride Ended.\nFinal Fare: ₱${final}\nHS/College/PWD: ₱${hsFare}\nElementary: ₱${elemFare}\nKinder: ₱${kinderFare}`
+      );
     } catch (err) {
-      alert('Failed to save trip to Firebase.');
+      alert("Failed to save trip.");
       console.error(err);
     }
   };
@@ -263,43 +261,100 @@ if (startedInside) {
       <MapView
         style={styles.map}
         region={{
-          latitude: location?.latitude || center.latitude,
-          longitude: location?.longitude || center.longitude,
+          latitude: location?.latitude || 6.5,
+          longitude: location?.longitude || 124.85,
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
         }}
+        provider="google"
       >
+        {/* Green = current live location */}
         {routeCoords.length > 0 && (
-          <Marker coordinate={routeCoords[0]} pinColor="green" title="Start" />
-        )}
-        {routeCoords.length > 1 && (
           <Marker
             coordinate={routeCoords[routeCoords.length - 1]}
-            pinColor="red"
-            title="Current / End"
+            pinColor="green"
+            title="Current Location"
           />
         )}
+
+        {/* Red = destination */}
+        {destinationCoords && (
+          <Marker
+            coordinate={destinationCoords}
+            pinColor="red"
+            title="Destination"
+          />
+        )}
+
+        {/* Path traveled */}
         {routeCoords.length > 1 && (
           <Polyline
             coordinates={routeCoords}
             strokeWidth={4}
-            strokeColor="green"
+            strokeColor="blue"
           />
         )}
-        <Circle
-          center={center}
-          radius={downtownRadius}
-          strokeColor="green"
-          strokeWidth={2}
-          fillColor="rgba(0,255,0,0.1)"
-        />
       </MapView>
 
-      <View style={styles.controls}>
-        <Text style={styles.info}>
-          Distance Outside Downtown: {distanceOutside.toFixed(2)} km
-        </Text>
-        <Text style={styles.info}>Fare: ₱{Math.round(fare)}</Text>
+      {/* Inputs */}
+      <View style={styles.topInputs}>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter Destination"
+          value={destinationText}
+          onChangeText={fetchSuggestions}
+        />
+        {suggestions.length > 0 && (
+          <FlatList
+            data={suggestions}
+            keyExtractor={(item) => item.place_id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.suggestion}
+                onPress={() =>
+                  fetchPlaceDetails(item.place_id, item.description)
+                }
+              >
+                <Text>{item.description}</Text>
+              </TouchableOpacity>
+            )}
+            style={styles.suggestionList}
+          />
+        )}
+
+        <TextInput
+          style={styles.input}
+          placeholder="Enter MTOP Number"
+          value={mtop}
+          onChangeText={setMtop}
+        />
+      </View>
+
+      {/* Bottom Controls */}
+      <View style={styles.bottomControls}>
+        {estimatedFare !== null && !tracking && (
+          <Text style={styles.info}>
+            Estimated: ₱{estimatedFare} ({estimatedDistance} km)
+          </Text>
+        )}
+        {tracking && (
+          <>
+            <Text style={styles.info}>
+              Distance Traveled: {liveDistance.toFixed(2)} km
+            </Text>
+            <Text style={styles.info}>Live Fare: ₱{liveFare}</Text>
+          </>
+        )}
+        {finalFare !== null && (
+          <>
+            <Text style={styles.info}>Final Fare: ₱{finalFare}</Text>
+            <Text style={styles.info}>
+              HS/College/PWD: ₱{fares?.highschool}
+            </Text>
+            <Text style={styles.info}>Elementary: ₱{fares?.elementary}</Text>
+            <Text style={styles.info}>Kinder: ₱{fares?.kinder}</Text>
+          </>
+        )}
 
         {!tracking ? (
           <TouchableOpacity style={styles.button} onPress={startRide}>
@@ -310,30 +365,69 @@ if (startedInside) {
             <Text style={styles.buttonText}>End Ride</Text>
           </TouchableOpacity>
         )}
-
-        <TouchableOpacity
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => navigation.navigate('FareMatrix')}
-        >
-          <Text style={styles.buttonText}>View Fare Matrix</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   map: { flex: 1 },
-  controls: { padding: 16, backgroundColor: '#fff' },
-  info: { fontSize: 16, marginBottom: 8, fontWeight: 'bold', color: 'black' },
+  topInputs: {
+    position: "absolute",
+    top: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 50,
+    left: 10,
+    right: 10,
+    backgroundColor: "white",
+    padding: 10,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  input: {
+    borderColor: "#ccc",
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: "white",
+  },
+  suggestionList: {
+    maxHeight: 150,
+    backgroundColor: "white",
+    borderColor: "#ccc",
+    borderWidth: 1,
+    marginBottom: 8,
+    borderRadius: 5,
+  },
+  suggestion: { padding: 10, borderBottomWidth: 1, borderColor: "#eee" },
+  bottomControls: {
+    position: "absolute",
+    bottom: 20,
+    left: 10,
+    right: 10,
+    backgroundColor: "white",
+    padding: 16,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignItems: "center",
+  },
+  info: { fontSize: 16, marginBottom: 6, fontWeight: "bold", color: "black" },
   button: {
-    backgroundColor: 'green',
+    backgroundColor: "green",
     padding: 14,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
+    width: "100%",
   },
-  secondaryButton: { backgroundColor: 'darkgreen' },
-  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  buttonText: { color: "white", fontWeight: "bold", fontSize: 16 },
 });
