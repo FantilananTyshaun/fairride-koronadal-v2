@@ -10,32 +10,57 @@ import {
   StatusBar,
   FlatList,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+import MapView, { Marker, Polyline, Polygon } from "react-native-maps";
 import * as Location from "expo-location";
-import { getDistance } from "geolib";
+import { getDistance, isPointInPolygon } from "geolib";
 import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
 
-const GOOGLE_API_KEY = "apikey"; // replace with your Google API Key
+// ✅ Import local Koronadal base fare zone
+import koronadalData from "../../data/koronadalZone.json";
 
-export default function CalculateFareScreen({ navigation }) {
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // 🔑 replace with your real key
+
+export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
   const [destinationText, setDestinationText] = useState("");
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [mtop, setMtop] = useState("");
   const [finalFare, setFinalFare] = useState(null);
-  const [fares, setFares] = useState(null); // ✅ stores all fare breakdown
+  const [fares, setFares] = useState(null);
   const [estimatedFare, setEstimatedFare] = useState(null);
+  const [estimatedFares, setEstimatedFares] = useState(null); // ✅ new
   const [estimatedDistance, setEstimatedDistance] = useState(null);
   const [tracking, setTracking] = useState(false);
   const [routeCoords, setRouteCoords] = useState([]);
   const [liveDistance, setLiveDistance] = useState(0);
-  const [liveFare, setLiveFare] = useState(0);
   const [user, setUser] = useState(null);
+  const [koronadalBoundary, setKoronadalBoundary] = useState([]);
+  const [startInside, setStartInside] = useState(false);
 
   const watchRef = useRef(null);
-  const snapInterval = useRef(null);
+  const mapRef = useRef(null);
+
+  // --- Load Koronadal polygon ---
+  useEffect(() => {
+    try {
+      const polygonFeature = koronadalData.features.find(
+        (f) => f.geometry.type === "Polygon"
+      );
+      if (polygonFeature) {
+        const coords = polygonFeature.geometry.coordinates[0].map(
+          ([lng, lat]) => ({
+            latitude: lat,
+            longitude: lng,
+          })
+        );
+        setKoronadalBoundary(coords);
+      }
+    } catch (err) {
+      console.error("Failed to load Koronadal zone:", err);
+    }
+  }, []);
 
   // --- Autocomplete ---
   const fetchSuggestions = async (text) => {
@@ -59,45 +84,73 @@ export default function CalculateFareScreen({ navigation }) {
       const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&key=${GOOGLE_API_KEY}`;
       const res = await fetch(url);
       const data = await res.json();
-
       if (data.result?.geometry?.location) {
         const loc = data.result.geometry.location;
         const dest = { latitude: loc.lat, longitude: loc.lng };
         setDestinationCoords(dest);
         setDestinationText(description);
         setSuggestions([]);
-
-        if (location) {
-          const { distanceKm, fare } = await fetchEstimatedFare(location, dest);
-          setEstimatedDistance(distanceKm);
-          setEstimatedFare(fare);
-        }
       }
     } catch (err) {
       console.error("Place details error:", err);
     }
   };
 
-  // --- Distance Matrix ---
+  // --- Distance Matrix + Apply Fare Rules (Preview Fare) ---
   const fetchEstimatedFare = async (start, end) => {
     try {
       const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${start.latitude},${start.longitude}&destinations=${end.latitude},${end.longitude}&key=${GOOGLE_API_KEY}`;
       const res = await fetch(url);
       const data = await res.json();
-
       if (data.rows?.[0]?.elements?.[0]?.distance?.value) {
         const meters = data.rows[0].elements[0].distance.value;
         const km = meters / 1000;
-        return {
-          distanceKm: km.toFixed(2),
-          fare: Math.round(km * 2),
-        };
+
+        // ✅ Apply same fare rules as End Ride
+        const startInsideEst =
+          koronadalBoundary.length > 0 &&
+          isPointInPolygon(start, koronadalBoundary);
+        const endInsideEst =
+          koronadalBoundary.length > 0 &&
+          isPointInPolygon(end, koronadalBoundary);
+
+        let estFare = 0;
+        if (!startInsideEst && endInsideEst) {
+          estFare = km * 2 + 15;
+        } else if (startInsideEst && !endInsideEst) {
+          estFare = 15 + km * 2;
+        } else if (startInsideEst && endInsideEst) {
+          estFare = 15;
+        } else {
+          estFare = km * 2;
+        }
+
+        estFare = Math.round(estFare);
+
+        // ✅ Discount tiers
+        const hsFare = Math.max(estFare - 3, 0);
+        const elemFare = Math.max(hsFare - 2, 0);
+        const kinderFare = Math.max(elemFare - 2, 0);
+
+        setEstimatedDistance(km.toFixed(2));
+        setEstimatedFare(estFare);
+        setEstimatedFares({
+          highschool: hsFare,
+          elementary: elemFare,
+          kinder: kinderFare,
+        });
       }
     } catch (err) {
       console.error("Distance Matrix error:", err);
     }
-    return { distanceKm: null, fare: null };
   };
+
+  // --- Recalculate Estimated Fare when location & destination are ready ---
+  useEffect(() => {
+    if (location && destinationCoords) {
+      fetchEstimatedFare(location, destinationCoords);
+    }
+  }, [location, destinationCoords]);
 
   // --- Snap to Roads ---
   const snapToRoads = async (coords) => {
@@ -122,18 +175,15 @@ export default function CalculateFareScreen({ navigation }) {
 
   // --- User ---
   useEffect(() => {
-    const fetchUser = () => {
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        setUser({
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName || "",
-        });
-      }
-    };
-    fetchUser();
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    if (currentUser) {
+      setUser({
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName || "",
+      });
+    }
   }, []);
 
   // --- Get current location ---
@@ -156,7 +206,6 @@ export default function CalculateFareScreen({ navigation }) {
 
     setRouteCoords([]);
     setLiveDistance(0);
-    setLiveFare(0);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") return alert("Location permission required.");
@@ -167,28 +216,37 @@ export default function CalculateFareScreen({ navigation }) {
     setLocation(currentLoc.coords);
     setRouteCoords([currentLoc.coords]);
 
+    if (koronadalBoundary.length > 0) {
+      setStartInside(isPointInPolygon(currentLoc.coords, koronadalBoundary));
+    }
+
     watchRef.current = await Location.watchPositionAsync(
       {
         accuracy: Location.Accuracy.Highest,
-        timeInterval: 5000,
-        distanceInterval: 10,
+        timeInterval: 3000,
+        distanceInterval: 5,
       },
-      (loc) => {
+      async (loc) => {
         setLocation(loc.coords);
-        setRouteCoords((c) => [...c, loc.coords]);
+
+        mapRef.current?.animateCamera(
+          { center: loc.coords, zoom: 16 },
+          { duration: 1000 }
+        );
+
+        const last = routeCoords[routeCoords.length - 1];
+        if (last) {
+          const snapped = await snapToRoads([last, loc.coords]);
+          if (snapped.length > 1) {
+            setRouteCoords((prev) => [...prev, snapped[1]]);
+            const segment = getDistance(last, snapped[1]) / 1000;
+            setLiveDistance((d) => d + segment);
+          }
+        } else {
+          setRouteCoords([loc.coords]);
+        }
       }
     );
-
-    snapInterval.current = setInterval(async () => {
-      const snapped = await snapToRoads(routeCoords);
-      let total = 0;
-      for (let i = 1; i < snapped.length; i++) {
-        total += getDistance(snapped[i - 1], snapped[i]);
-      }
-      const km = total / 1000;
-      setLiveDistance(km);
-      setLiveFare(Math.round(km * 2));
-    }, 10000);
 
     setTracking(true);
   };
@@ -198,10 +256,6 @@ export default function CalculateFareScreen({ navigation }) {
     if (watchRef.current) {
       watchRef.current.remove();
       watchRef.current = null;
-    }
-    if (snapInterval.current) {
-      clearInterval(snapInterval.current);
-      snapInterval.current = null;
     }
     setTracking(false);
 
@@ -214,10 +268,28 @@ export default function CalculateFareScreen({ navigation }) {
     }
     const traveledKm = traveledMeters / 1000;
 
-    const final = Math.round(traveledKm * 2);
+    let endInside = false;
+    if (koronadalBoundary.length > 0) {
+      endInside = isPointInPolygon(
+        snapped[snapped.length - 1],
+        koronadalBoundary
+      );
+    }
+
+    let final = 0;
+    if (!startInside && endInside) {
+      final = traveledKm * 2 + 15;
+    } else if (startInside && !endInside) {
+      final = 15 + traveledKm * 2;
+    } else if (startInside && endInside) {
+      final = 15;
+    } else {
+      final = traveledKm * 2;
+    }
+
+    final = Math.round(final);
     setFinalFare(final);
 
-    // ✅ Compute other fares
     const hsFare = Math.max(final - 3, 0);
     const elemFare = Math.max(hsFare - 2, 0);
     const kinderFare = Math.max(elemFare - 2, 0);
@@ -259,6 +331,7 @@ export default function CalculateFareScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         region={{
           latitude: location?.latitude || 6.5,
@@ -268,7 +341,15 @@ export default function CalculateFareScreen({ navigation }) {
         }}
         provider="google"
       >
-        {/* Green = current live location */}
+        {koronadalBoundary.length > 0 && (
+          <Polygon
+            coordinates={koronadalBoundary}
+            strokeColor="green"
+            fillColor="rgba(0,128,0,0.2)"
+            strokeWidth={2}
+          />
+        )}
+
         {routeCoords.length > 0 && (
           <Marker
             coordinate={routeCoords[routeCoords.length - 1]}
@@ -277,7 +358,6 @@ export default function CalculateFareScreen({ navigation }) {
           />
         )}
 
-        {/* Red = destination */}
         {destinationCoords && (
           <Marker
             coordinate={destinationCoords}
@@ -286,13 +366,8 @@ export default function CalculateFareScreen({ navigation }) {
           />
         )}
 
-        {/* Path traveled */}
         {routeCoords.length > 1 && (
-          <Polyline
-            coordinates={routeCoords}
-            strokeWidth={4}
-            strokeColor="blue"
-          />
+          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="blue" />
         )}
       </MapView>
 
@@ -333,18 +408,28 @@ export default function CalculateFareScreen({ navigation }) {
       {/* Bottom Controls */}
       <View style={styles.bottomControls}>
         {estimatedFare !== null && !tracking && (
-          <Text style={styles.info}>
-            Estimated: ₱{estimatedFare} ({estimatedDistance} km)
-          </Text>
-        )}
-        {tracking && (
           <>
             <Text style={styles.info}>
-              Distance Traveled: {liveDistance.toFixed(2)} km
+              Estimated: ₱{estimatedFare} ({estimatedDistance} km)
             </Text>
-            <Text style={styles.info}>Live Fare: ₱{liveFare}</Text>
+            <Text style={styles.info}>
+              HS/College/PWD: ₱{estimatedFares?.highschool}
+            </Text>
+            <Text style={styles.info}>
+              Elementary: ₱{estimatedFares?.elementary}
+            </Text>
+            <Text style={styles.info}>
+              Kinder: ₱{estimatedFares?.kinder}
+            </Text>
           </>
         )}
+
+        {tracking && (
+          <Text style={styles.info}>
+            Distance Traveled: {liveDistance.toFixed(2)} km
+          </Text>
+        )}
+
         {finalFare !== null && (
           <>
             <Text style={styles.info}>Final Fare: ₱{finalFare}</Text>

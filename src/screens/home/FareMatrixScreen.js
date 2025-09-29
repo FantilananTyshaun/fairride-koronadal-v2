@@ -59,11 +59,30 @@ export default function FareMatrixScreen() {
           <Text style={styles.zoneName}>{item.zoneName || 'Unnamed Zone'}</Text>
           <View style={styles.separator} />
 
-          {/* Kindergarten Fare */}
+          {/* Regular Fare */}
           <View style={styles.row}>
-            <Text style={styles.label}>Kindergarten Fare:</Text>
+            <Text style={styles.label}>Regular Fare:</Text>
             <Text style={styles.value}>
-              ₱{item.kindergartenFare ?? 'N/A'}
+              ₱{item.regularFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+
+          {/* Student College Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Student College Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.studentCollegeFare ?? 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.separator} />
+
+          {/* Student High School Fare */}
+          <View style={styles.row}>
+            <Text style={styles.label}>Student High School Fare:</Text>
+            <Text style={styles.value}>
+              ₱{item.studentHighSchoolFare ?? 'N/A'}
             </Text>
           </View>
           <View style={styles.separator} />
@@ -77,24 +96,6 @@ export default function FareMatrixScreen() {
           </View>
           <View style={styles.separator} />
 
-          {/* Regular Fare */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Regular Fare:</Text>
-            <Text style={styles.value}>
-              ₱{item.regularFare ?? 'N/A'}
-            </Text>
-          </View>
-          <View style={styles.separator} />
-
-          {/* Student College Fare */}
-          <View style={styles.row}>
-            <Text style={styles.label}>Student College Fare:</Text>
-            <Text style={styles.value}>
-              ₱{item.studentCollegeFare ?? 'N/A'}
-            </Text>
-          </View>
-          <View style={styles.separator} />
-
           {/* Student Elementary Fare */}
           <View style={styles.row}>
             <Text style={styles.label}>Student Elementary Fare:</Text>
@@ -104,11 +105,11 @@ export default function FareMatrixScreen() {
           </View>
           <View style={styles.separator} />
 
-          {/* Student High School Fare */}
+          {/* Kindergarten Fare */}
           <View style={styles.row}>
-            <Text style={styles.label}>Student High School Fare:</Text>
+            <Text style={styles.label}>Kindergarten Fare:</Text>
             <Text style={styles.value}>
-              ₱{item.studentHighSchoolFare ?? 'N/A'}
+              ₱{item.kindergartenFare ?? 'N/A'}
             </Text>
           </View>
         </View>
