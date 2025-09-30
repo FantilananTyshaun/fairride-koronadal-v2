@@ -48,9 +48,7 @@ export default function TripDetailsScreen({ route }) {
       >
         {startCoord && <Marker coordinate={startCoord} pinColor="green" title="Start" />}
         {endCoord && <Marker coordinate={endCoord} pinColor="red" title="End" />}
-        {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeColor="blue" strokeWidth={4} />
-        )}
+        {routeCoords.length > 1 && <Polyline coordinates={routeCoords} strokeColor="blue" strokeWidth={4} />}
       </MapView>
 
       <View style={styles.infoContainer}>
@@ -63,7 +61,6 @@ export default function TripDetailsScreen({ route }) {
         <Text style={styles.infoText}>Destination: {trip?.destinationInput || "N/A"}</Text>
         <Text style={styles.infoText}>MTOP #: {trip?.mtopNumber || "N/A"}</Text>
 
-        {/* 🚨 Report Button */}
         <TouchableOpacity
           style={styles.reportButton}
           onPress={() =>
@@ -96,8 +93,6 @@ const styles = StyleSheet.create({
     borderColor: "black",
   },
   infoText: { fontSize: 16, fontWeight: "bold", marginBottom: 6, color: "black" },
-
-  // 🚨 New Styles
   reportButton: {
     marginTop: 12,
     backgroundColor: "#F8D7DA",

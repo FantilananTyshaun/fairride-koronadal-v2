@@ -58,10 +58,7 @@ export default function HistoryScreen() {
   );
 
   const renderTrip = ({ item }) => {
-    const tripDate = item.timestamp
-      ? new Date(item.timestamp)
-      : new Date();
-
+    const tripDate = item.timestamp ? new Date(item.timestamp) : new Date();
     const routeCoords = item.routeCoords || [];
 
     return (
@@ -91,7 +88,11 @@ export default function HistoryScreen() {
           >
             <Polyline coordinates={routeCoords} strokeColor="blue" strokeWidth={3} />
             <Marker coordinate={routeCoords[0]} title="Start" pinColor="green" />
-            <Marker coordinate={routeCoords[routeCoords.length - 1]} title="End" pinColor="red" />
+            <Marker
+              coordinate={routeCoords[routeCoords.length - 1]}
+              title="End"
+              pinColor="red"
+            />
           </MapView>
         )}
       </TouchableOpacity>
