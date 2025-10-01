@@ -17,7 +17,7 @@ import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
 import koronadalData from "../../data/koronadalZone.json";
 
-const GOOGLE_API_KEY = "apikey"; // replace with your key
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your key
 
 export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
@@ -36,6 +36,7 @@ export default function CalculateFareScreen() {
   const [user, setUser] = useState(null);
   const [koronadalBoundary, setKoronadalBoundary] = useState([]);
   const [startInside, setStartInside] = useState(false);
+  const [everEnteredDowntown, setEverEnteredDowntown] = useState(false);
 
   const watchRef = useRef(null);
   const mapRef = useRef(null);
@@ -108,11 +109,23 @@ export default function CalculateFareScreen() {
           koronadalBoundary.length > 0 &&
           isPointInPolygon(end, koronadalBoundary);
 
+        // --- updated fare logic (matches endRide) ---
         let estFare = 0;
-        if (!startInsideEst && endInsideEst) estFare = km * 2 + 15;
-        else if (startInsideEst && !endInsideEst) estFare = 15 + km * 2;
-        else if (startInsideEst && endInsideEst) estFare = 15;
-        else estFare = km * 2;
+        if (!startInsideEst && endInsideEst) {
+          estFare = km * 2 + 15;
+        } else if (startInsideEst && !endInsideEst) {
+          estFare = 15 + km * 2;
+        } else if (startInsideEst && endInsideEst) {
+          estFare = 15;
+        } else {
+          // Both start & end are outside
+          // Approximation: if distance is long enough, assume pass-through downtown
+          if (km > 2) {
+            estFare = km * 2 + 15; // outside → pass downtown → outside
+          } else {
+            estFare = km * 2; // completely outside
+          }
+        }
 
         estFare = Math.round(estFare);
 
@@ -132,6 +145,7 @@ export default function CalculateFareScreen() {
       console.error("Distance Matrix error:", err);
     }
   };
+
 
   useEffect(() => {
     if (location && destinationCoords) {
@@ -192,6 +206,7 @@ export default function CalculateFareScreen() {
       return alert("Please set destination and MTOP first.");
     setRouteCoords([]);
     setLiveDistance(0);
+    setEverEnteredDowntown(false);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== "granted") return alert("Location permission required.");
@@ -203,14 +218,23 @@ export default function CalculateFareScreen() {
     setRouteCoords([currentLoc.coords]);
 
     if (koronadalBoundary.length > 0) {
-      setStartInside(isPointInPolygon(currentLoc.coords, koronadalBoundary));
+      const inside = isPointInPolygon(currentLoc.coords, koronadalBoundary);
+      setStartInside(inside);
+      if (inside) setEverEnteredDowntown(true);
     }
 
     watchRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 1 },
+      {
+        accuracy: Location.Accuracy.Highest,
+        timeInterval: 1000,
+        distanceInterval: 1,
+      },
       (loc) => {
         setLocation(loc.coords);
-        mapRef.current?.animateCamera({ center: loc.coords, zoom: 16 }, { duration: 1000 });
+        mapRef.current?.animateCamera(
+          { center: loc.coords, zoom: 16 },
+          { duration: 1000 }
+        );
         setRouteCoords((prev) => {
           const last = prev[prev.length - 1];
           if (last) {
@@ -220,6 +244,12 @@ export default function CalculateFareScreen() {
           }
           return [loc.coords];
         });
+
+        // track if entered downtown
+        if (koronadalBoundary.length > 0) {
+          const nowInside = isPointInPolygon(loc.coords, koronadalBoundary);
+          if (nowInside) setEverEnteredDowntown(true);
+        }
       }
     );
 
@@ -248,11 +278,14 @@ export default function CalculateFareScreen() {
       koronadalBoundary.length > 0 &&
       isPointInPolygon(snapped[snapped.length - 1], koronadalBoundary);
 
+    // --- final fare logic (with downtown pass-through rule) ---
     let final = 0;
     if (!startInside && endInside) final = traveledKm * 2 + 15;
     else if (startInside && !endInside) final = 15 + traveledKm * 2;
     else if (startInside && endInside) final = 15;
-    else final = traveledKm * 2;
+    else if (!startInside && !endInside && everEnteredDowntown)
+      final = traveledKm * 2 + 15;
+    else final = traveledKm * 2 + 15;
 
     final = Math.round(final);
     setFinalFare(final);
@@ -312,10 +345,18 @@ export default function CalculateFareScreen() {
           />
         )}
         {destinationCoords && (
-          <Marker coordinate={destinationCoords} pinColor="red" title="Destination" />
+          <Marker
+            coordinate={destinationCoords}
+            pinColor="red"
+            title="Destination"
+          />
         )}
         {routeCoords.length > 1 && (
-          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="blue" />
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={4}
+            strokeColor="blue"
+          />
         )}
       </MapView>
 
@@ -333,7 +374,9 @@ export default function CalculateFareScreen() {
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.suggestion}
-                onPress={() => fetchPlaceDetails(item.place_id, item.description)}
+                onPress={() =>
+                  fetchPlaceDetails(item.place_id, item.description)
+                }
               >
                 <Text>{item.description}</Text>
               </TouchableOpacity>
@@ -353,20 +396,31 @@ export default function CalculateFareScreen() {
         {estimatedFare !== null && !tracking && (
           <>
             <Text style={styles.info}>
-              Estimated: ₱{estimatedFare} {estimatedDistance ? `(${estimatedDistance} km)` : ""}
+              Estimated: ₱{estimatedFare}{" "}
+              {estimatedDistance ? `(${estimatedDistance} km)` : ""}
             </Text>
-            <Text style={styles.info}>HS/College/PWD: ₱{estimatedFares?.highschool}</Text>
-            <Text style={styles.info}>Elementary: ₱{estimatedFares?.elementary}</Text>
+            <Text style={styles.info}>
+              HS/College/PWD: ₱{estimatedFares?.highschool}
+            </Text>
+            <Text style={styles.info}>
+              Elementary: ₱{estimatedFares?.elementary}
+            </Text>
             <Text style={styles.info}>Kinder: ₱{estimatedFares?.kinder}</Text>
           </>
         )}
 
-        {tracking && <Text style={styles.info}>Distance Traveled: {liveDistance.toFixed(2)} km</Text>}
+        {tracking && (
+          <Text style={styles.info}>
+            Distance Traveled: {liveDistance.toFixed(2)} km
+          </Text>
+        )}
 
         {finalFare !== null && (
           <>
             <Text style={styles.info}>Final Fare: ₱{finalFare}</Text>
-            <Text style={styles.info}>HS/College/PWD: ₱{fares?.highschool}</Text>
+            <Text style={styles.info}>
+              HS/College/PWD: ₱{fares?.highschool}
+            </Text>
             <Text style={styles.info}>Elementary: ₱{fares?.elementary}</Text>
             <Text style={styles.info}>Kinder: ₱{fares?.kinder}</Text>
           </>
@@ -387,7 +441,10 @@ export default function CalculateFareScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0 },
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+  },
   map: { flex: 1 },
   topInputs: {
     position: "absolute",
