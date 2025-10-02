@@ -1,0 +1,25 @@
+// src/utils/specialFares.js
+export const specialFares = {
+  "Purok New Leganes, Koronadal, South Cotabato, Philippines": 17,
+  "Bagacay": 17,
+  "Provincail Jail": 17,
+  "Bagong Sikat": 20,
+  "Marville Homes": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+  "Koronadal City Hall": 20,
+
+};

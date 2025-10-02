@@ -16,6 +16,7 @@ import { getDistance, isPointInPolygon } from "geolib";
 import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
 import koronadalData from "../../data/koronadalZone.json";
+import { specialFares } from "../../utils/fixedFares";
 
 const GOOGLE_API_KEY = "api"; // replace with your key
 
@@ -110,22 +111,29 @@ export default function CalculateFareScreen() {
           isPointInPolygon(end, koronadalBoundary);
 
         // --- updated fare logic (matches endRide) ---
-        let estFare = 0;
-        if (!startInsideEst && endInsideEst) {
-          estFare = km * 2 + 15;
-        } else if (startInsideEst && !endInsideEst) {
-          estFare = 15 + km * 2;
-        } else if (startInsideEst && endInsideEst) {
-          estFare = 15;
-        } else {
-          // Both start & end are outside
-          // Approximation: if distance is long enough, assume pass-through downtown
-          if (km > 2) {
-            estFare = km * 2 + 15; // outside → pass downtown → outside
-          } else {
-            estFare = km * 2; // completely outside
-          }
-        }
+       let estFare = 0;
+
+// ✅ Check if destination is in special fare list
+const matchedKey = Object.keys(specialFares).find((key) =>
+  destinationText.toLowerCase().includes(key.toLowerCase())
+);
+
+if (startInsideEst && matchedKey) {
+  estFare = specialFares[matchedKey]; // fixed fare override
+} else {
+  // --- existing logic ---
+  if (!startInsideEst && endInsideEst) {
+    estFare = km * 2 + 15;
+  } else if (startInsideEst && !endInsideEst) {
+    estFare = 15 + km * 2;
+  } else if (startInsideEst && endInsideEst) {
+    estFare = 15;
+  } else {
+    if (km > 2) estFare = km * 2 + 15;
+    else estFare = km * 2;
+  }
+}
+
 
         estFare = Math.round(estFare);
 
@@ -280,12 +288,24 @@ export default function CalculateFareScreen() {
 
     // --- final fare logic (with downtown pass-through rule) ---
     let final = 0;
-    if (!startInside && endInside) final = traveledKm * 2 + 15;
-    else if (startInside && !endInside) final = 15 + traveledKm * 2;
-    else if (startInside && endInside) final = 15;
-    else if (!startInside && !endInside && everEnteredDowntown)
-      final = traveledKm * 2 + 15;
-    else final = traveledKm * 2 + 15;
+
+// ✅ Check if destination qualifies for a fixed fare
+const matchedKey = Object.keys(specialFares).find((key) =>
+  destinationText.toLowerCase().includes(key.toLowerCase())
+);
+
+if (startInside && matchedKey) {
+  final = specialFares[matchedKey]; // fixed fare override
+} else {
+  // --- your existing logic ---
+  if (!startInside && endInside) final = traveledKm * 2 + 15;
+  else if (startInside && !endInside) final = 15 + traveledKm * 2;
+  else if (startInside && endInside) final = 15;
+  else if (!startInside && !endInside && everEnteredDowntown)
+    final = traveledKm * 2 + 15;
+  else final = traveledKm * 2 + 15;
+}
+
 
     final = Math.round(final);
     setFinalFare(final);
