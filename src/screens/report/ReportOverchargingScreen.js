@@ -1,3 +1,4 @@
+// src/screens/reports/ReportOverchargingScreen.js
 import React, { useState, useEffect } from "react";
 import {
   Text,
@@ -14,10 +15,9 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { db, auth } from "../../services/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { uploadMediaAsync } from "../../utils/uploadMedia";
 
 export default function ReportOverchargingScreen({ navigation, route }) {
-  const { mtopNumber: passedMtop } = route.params || {};
+  const { mtopNumber: passedMtop, trip } = route.params || {};
   const [mtopNumber, setMtopNumber] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
@@ -26,54 +26,59 @@ export default function ReportOverchargingScreen({ navigation, route }) {
     if (passedMtop) setMtopNumber(passedMtop);
   }, [passedMtop]);
 
+  // Pick image
   const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission denied", "Camera roll permission is required!");
-      return;
-    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "We need access to your gallery.");
+        return;
+      }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType.Images, // only images
-      allowsEditing: true,
-      quality: 0.7,
-    });
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        base64: true,
+        quality: 0.5,
+      });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setImage(result.assets[0]);
+      if (!result.canceled && result.assets?.length > 0) {
+        const img = result.assets[0];
+        setImage(`data:image/jpeg;base64,${img.base64}`);
+      }
+    } catch (error) {
+      console.error("Image picker error:", error);
+      Alert.alert("Error", "Could not open gallery.");
     }
   };
 
+  // Submit report
   const handleSubmit = async () => {
     if (!mtopNumber || !description) {
       Alert.alert("Required", "Please fill out all fields.");
       return;
     }
+    if (!image) {
+      Alert.alert("Required", "Please upload a photo before submitting.");
+      return;
+    }
 
     try {
-      let imageUrl = null;
-
-      if (image) {
-        const fileName = `${Date.now()}-${image.fileName || "upload"}`;
-        imageUrl = await uploadMediaAsync(image.uri, `reports/${fileName}`);
-      }
-
       await addDoc(collection(db, "reports"), {
         type: "Overcharging",
         mtopNumber,
         description,
-        imageUrl,
+        photo: image,
+        trip: trip || null,
         timestamp: serverTimestamp(),
         userId: auth.currentUser?.uid || null,
-        userName:
-          auth.currentUser?.displayName ||
-          auth.currentUser?.email ||
-          "Anonymous",
+        userName: auth.currentUser?.displayName || auth.currentUser?.email || "Anonymous",
       });
 
       Alert.alert("Report Saved", "Your report has been uploaded.");
       setDescription("");
       setImage(null);
+      navigation.goBack();
     } catch (err) {
       console.error("Failed to save report:", err);
       Alert.alert("Error", "Failed to save report. Check console for details.");
@@ -87,7 +92,7 @@ export default function ReportOverchargingScreen({ navigation, route }) {
         <TextInput
           style={styles.input}
           value={mtopNumber}
-          editable={false} // ✅ MTOP cannot be edited
+          editable={false}
           placeholderTextColor="#999"
         />
 
@@ -110,7 +115,7 @@ export default function ReportOverchargingScreen({ navigation, route }) {
 
         {image && (
           <Image
-            source={{ uri: image.uri }}
+            source={{ uri: image }}
             style={{ width: "100%", height: 200, marginVertical: 10 }}
             resizeMode="contain"
           />
@@ -120,11 +125,12 @@ export default function ReportOverchargingScreen({ navigation, route }) {
           <Text style={styles.buttonText}>Submit Report</Text>
         </TouchableOpacity>
 
+        {/* View Reports Button */}
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.button, { backgroundColor: "green", marginTop: 12 }]}
           onPress={() => navigation.navigate("ViewReports")}
         >
-          <Text style={styles.secondaryButtonText}>View Submitted Reports</Text>
+          <Text style={styles.buttonText}>View Reports</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -155,10 +161,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     color: "black",
   },
-  textarea: {
-    height: 120,
-    textAlignVertical: "top",
-  },
+  textarea: { height: 120, textAlignVertical: "top" },
   button: {
     backgroundColor: "#E6F5E6",
     padding: 14,
@@ -168,11 +171,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 4,
   },
-  buttonText: {
-    color: "black",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  buttonText: { color: "black", fontWeight: "bold", fontSize: 16 },
   secondaryButton: {
     marginTop: 12,
     padding: 12,
@@ -182,9 +181,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignItems: "center",
   },
-  secondaryButtonText: {
-    color: "black",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  secondaryButtonText: { color: "black", fontWeight: "bold", fontSize: 16 },
 });

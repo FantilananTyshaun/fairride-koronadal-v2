@@ -1,5 +1,5 @@
-//ReportDetailsScreen.js
-import React from 'react';
+// src/screens/reports/ReportDetailsScreen.js
+import React, { useState } from 'react';
 import {
   Text,
   StyleSheet,
@@ -7,10 +7,16 @@ import {
   SafeAreaView,
   Platform,
   StatusBar,
+  Image,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+  View,
 } from 'react-native';
 
 export default function ReportDetailsScreen({ route }) {
   const { report } = route.params;
+  const [modalVisible, setModalVisible] = useState(false);
 
   const formattedDate = report.timestamp?.toDate
     ? report.timestamp.toDate().toLocaleString()
@@ -33,8 +39,37 @@ export default function ReportDetailsScreen({ route }) {
           {report.description || 'No description'}
         </Text>
 
+        {report.photo && (
+          <>
+            <Text style={styles.label}>Uploaded Photo</Text>
+            <TouchableOpacity onPress={() => setModalVisible(true)}>
+              <Image
+                source={{ uri: report.photo }}
+                style={styles.photo}
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
+          </>
+        )}
+
         <Text style={styles.label}>Date & Time</Text>
         <Text style={styles.value}>{formattedDate}</Text>
+
+        {/* Fullscreen image modal */}
+        <Modal
+          visible={modalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <Pressable style={styles.modalBackground} onPress={() => setModalVisible(false)}>
+            <Image
+              source={{ uri: report.photo }}
+              style={styles.fullscreenImage}
+              resizeMode="contain"
+            />
+          </Pressable>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -60,5 +95,23 @@ const styles = StyleSheet.create({
     color: 'black',
     fontSize: 16,
     marginTop: 4,
+  },
+  photo: {
+    width: '100%',
+    height: 250,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'black',
+  },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
   },
 });

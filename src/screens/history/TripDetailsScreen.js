@@ -9,7 +9,6 @@ export default function TripDetailsScreen({ route }) {
   const mapRef = useRef(null);
   const navigation = useNavigation();
 
-  // Ensure coordinates are numbers
   const routeCoords = (trip?.routeCoords || []).map((p) => ({
     latitude: Number(p.latitude),
     longitude: Number(p.longitude),
@@ -66,7 +65,7 @@ export default function TripDetailsScreen({ route }) {
           onPress={() =>
             navigation.navigate("ReportOvercharging", {
               mtopNumber: trip?.mtopNumber || "",
-              tripId: trip?.id || null,
+              trip: trip, // ✅ pass full trip object
             })
           }
         >
@@ -103,9 +102,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "100%",
   },
-  reportButtonText: {
-    color: "black",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  reportButtonText: { color: "black", fontWeight: "bold", fontSize: 16 },
 });

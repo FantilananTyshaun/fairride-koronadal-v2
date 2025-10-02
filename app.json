@@ -17,14 +17,21 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.fairride.koronadal"
+      "bundleIdentifier": "com.fairride.koronadal",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.fairride.koronadal"
+      "package": "com.fairride.koronadal",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/logo.png"
