@@ -303,7 +303,7 @@ if (startInside && matchedKey) {
   else if (startInside && endInside) final = 15;
   else if (!startInside && !endInside && everEnteredDowntown)
     final = traveledKm * 2 + 15;
-  else final = traveledKm * 2 + 15;
+  else final = traveledKm * 2;
 }
 
 

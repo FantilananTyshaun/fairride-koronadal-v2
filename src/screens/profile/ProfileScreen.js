@@ -6,12 +6,12 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  SafeAreaView,
   StyleSheet,
   Platform,
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../services/firebase';
 import { updateProfile, updateEmail, updatePassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';

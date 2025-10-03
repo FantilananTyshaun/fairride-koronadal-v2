@@ -6,10 +6,10 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { db, auth } from '../../services/firebase';
 import { collection, query, orderBy, where, getDocs } from 'firebase/firestore';
 

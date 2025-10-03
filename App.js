@@ -1,10 +1,11 @@
-//App.js
+// App.js
 import 'react-native-gesture-handler';
 import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './src/services/firebase';
@@ -21,11 +22,13 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // 🔹 Watch Firebase authentication state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
+      setLoading(false); // mark loading complete
     });
     return unsubscribe; // cleanup listener
   }, []);
@@ -92,20 +95,20 @@ export default function App() {
       />
 
       <Tab.Screen
-  name="FareMatrix"
-  component={ReportStack}
-  options={{
-    headerShown: false,
-    tabBarLabel: 'Fare Matrix',
-    tabBarIcon: ({ focused, color }) => (
-      <Ionicons
-        name={focused ? 'help-circle' : 'help-circle-outline'}
-        size={22}
-        color={color}
+        name="FareMatrix"
+        component={ReportStack}
+        options={{
+          headerShown: false,
+          tabBarLabel: 'Fare Matrix',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons
+              name={focused ? 'help-circle' : 'help-circle-outline'}
+              size={22}
+              color={color}
+            />
+          ),
+        }}
       />
-    ),
-  }}
-/>
 
       <Tab.Screen
         name="Profile"
@@ -118,6 +121,17 @@ export default function App() {
       </Tab.Screen>
     </Tab.Navigator>
   );
+
+  if (loading) {
+    // show a temporary loading indicator inside SafeAreaView
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="green" />
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>

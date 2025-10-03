@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   Platform,
   StatusBar,
   Image,
@@ -13,6 +12,7 @@ import {
   Pressable,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ReportDetailsScreen({ route }) {
   const { report } = route.params;
