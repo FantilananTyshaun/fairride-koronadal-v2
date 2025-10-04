@@ -16,6 +16,7 @@ import RegisterScreen from './src/screens/auth/RegisterScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 import HomeStack from './src/navigation/HomeStack';
 import HistoryStack from './src/navigation/HistoryStack';
+import FareStack from './src/navigation/FareStack';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -96,7 +97,7 @@ export default function App() {
 
       <Tab.Screen
         name="FareMatrix"
-        component={ReportStack}
+        component={FareStack}
         options={{
           headerShown: false,
           tabBarLabel: 'Fare Matrix',

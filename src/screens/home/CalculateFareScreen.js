@@ -18,7 +18,7 @@ import { getAuth } from "firebase/auth";
 import koronadalData from "../../data/koronadalZone.json";
 import { specialFares } from "../../utils/fixedFares";
 
-const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your key
+const GOOGLE_API_KEY = "api"; // replace with your key
 
 export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
