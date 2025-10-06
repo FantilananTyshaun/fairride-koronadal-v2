@@ -41,6 +41,19 @@ export default function CalculateFareScreen() {
   const watchRef = useRef(null);
   const mapRef = useRef(null);
 
+  function findSpecialFare(coords) {
+    for (const spot of specialFares) {
+      const d = getDistance(
+        coords,
+        { latitude: spot.lat, longitude: spot.lng }
+      );
+      if (d <= spot.radius) {
+        return spot.fare;
+      }
+    }
+    return null;
+  }
+
   // Load Koronadal polygon
   useEffect(() => {
     try {
@@ -110,28 +123,26 @@ export default function CalculateFareScreen() {
           isPointInPolygon(end, koronadalBoundary);
 
         // --- updated fare logic (matches endRide) ---
-       let estFare = 0;
+        let estFare = 0;
 
-// ✅ Check if destination is in special fare list
-const matchedKey = Object.keys(specialFares).find((key) =>
-  destinationText.toLowerCase().includes(key.toLowerCase())
-);
+        // Check if destination is in special fare list
+        const startSpecialFare = findSpecialFare(start);
+        const endSpecialFare = findSpecialFare(end);
 
-if (startInsideEst && matchedKey) {
-  estFare = specialFares[matchedKey]; // fixed fare override
-} else {
-  // --- existing logic ---
-  if (!startInsideEst && endInsideEst) {
-    estFare = km * 2 + 15;
-  } else if (startInsideEst && !endInsideEst) {
-    estFare = 15 + km * 2;
-  } else if (startInsideEst && endInsideEst) {
-    estFare = 15;
-  } else {
-    if (km > 2) estFare = km * 2 + 15;
-    else estFare = km * 2;
-  }
-}
+        if (startInsideEst && endSpecialFare) {
+          estFare = endSpecialFare; // Downtown → special
+        } else if (!startInsideEst && endInsideEst && startSpecialFare) {
+          estFare = startSpecialFare; // Special → downtown
+        } else {
+          if (!startInsideEst && endInsideEst) estFare = km * 2 + 15;
+          else if (startInsideEst && !endInsideEst) estFare = 15 + km * 2;
+          else if (startInsideEst && endInsideEst) estFare = 15;
+          else if (!startInsideEst && !endInsideEst) {
+            if (km > 2) estFare = km * 2 + 15;
+            else estFare = km * 2;
+          }
+        }
+
 
 
         estFare = Math.round(estFare);
@@ -288,23 +299,23 @@ if (startInsideEst && matchedKey) {
     // --- final fare logic (with downtown pass-through rule) ---
     let final = 0;
 
-// ✅ Check if destination qualifies for a fixed fare
-const matchedKey = Object.keys(specialFares).find((key) =>
-  destinationText.toLowerCase().includes(key.toLowerCase())
-);
+    //Check if destination qualifies for a fixed fare
+    const startSpecialFare = findSpecialFare(snapped[0]);
+    const endSpecialFare = findSpecialFare(snapped[snapped.length - 1]);
 
-if (startInside && matchedKey) {
-  final = specialFares[matchedKey]; // fixed fare override
-} else {
-  // --- your existing logic ---
-  if (!startInside && endInside) final = traveledKm * 2 + 15;
-  else if (startInside && !endInside) final = 15 + traveledKm * 2;
-  else if (startInside && endInside) final = 15;
-  else if (!startInside && !endInside && everEnteredDowntown)
-    final = traveledKm * 2 + 15;
-  else final = traveledKm * 2;
-}
+    if (startInside && endSpecialFare) {
+      final = endSpecialFare; // Downtown → special
+    } else if (!startInside && endInside && startSpecialFare) {
+      final = startSpecialFare; // Special → downtown
+    } else {
 
+      if (!startInside && endInside) final = traveledKm * 2 + 15;
+      else if (startInside && !endInside) final = 15 + traveledKm * 2;
+      else if (startInside && endInside) final = 15;
+      else if (!startInside && !endInside && everEnteredDowntown)
+        final = traveledKm * 2 + 15;
+      else final = traveledKm * 2;
+    }
 
     final = Math.round(final);
     setFinalFare(final);
