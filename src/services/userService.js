@@ -1,4 +1,3 @@
-//userService.js
 import { auth, db } from './firebase';
 import {
   createUserWithEmailAndPassword,
@@ -11,10 +10,18 @@ import {
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 /** Register a new user in Firebase Auth + Firestore */
-export const registerUser = async (email, password, name) => {
+export const registerUser = async (email, password, name, contact) => {
   const userCredential = await createUserWithEmailAndPassword(auth, email, password);
   const user = userCredential.user;
-  await setDoc(doc(db, 'users', user.uid), { name, email, createdAt: new Date().toISOString() });
+
+  // Save extra info (contact number)
+  await setDoc(doc(db, 'users', user.uid), {
+    name,
+    email,
+    contact,
+    createdAt: new Date().toISOString(),
+  });
+
   return user;
 };
 
@@ -36,7 +43,7 @@ export const getUserProfile = async (uid) => {
 };
 
 /** Update user profile in Firebase Auth + Firestore */
-export const updateUserProfile = async ({ name, email, password }) => {
+export const updateUserProfile = async ({ name, email, password, contact }) => {
   const user = auth.currentUser;
   if (!user) throw new Error('No user logged in');
 
@@ -44,5 +51,9 @@ export const updateUserProfile = async ({ name, email, password }) => {
   if (email && user.email !== email) await updateEmail(user, email);
   if (password) await updatePassword(user, password);
 
-  await setDoc(doc(db, 'users', user.uid), { name, email }, { merge: true });
+  await setDoc(
+    doc(db, 'users', user.uid),
+    { name, email, contact },
+    { merge: true }
+  );
 };

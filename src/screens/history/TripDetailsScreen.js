@@ -1,18 +1,21 @@
 // src/screens/history/TripDetailsScreen.js
 import React, { useRef, useEffect } from "react";
-import { View, Text, StyleSheet, Platform, StatusBar, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Platform, StatusBar, TouchableOpacity, Dimensions, ScrollView } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { useNavigation } from "@react-navigation/native";
 
 export default function TripDetailsScreen({ route }) {
-  const { trip } = route.params;
+  const { trip } = route.params || {};
   const mapRef = useRef(null);
   const navigation = useNavigation();
+  const screenHeight = Dimensions.get("window").height;
 
-  const routeCoords = (trip?.routeCoords || []).map((p) => ({
-    latitude: Number(p.latitude),
-    longitude: Number(p.longitude),
-  }));
+  const routeCoords = Array.isArray(trip?.routeCoords)
+    ? trip.routeCoords.map((p) => ({
+        latitude: Number(p.latitude),
+        longitude: Number(p.longitude),
+      }))
+    : [];
 
   const startCoord = trip?.start
     ? { latitude: Number(trip.start.latitude), longitude: Number(trip.start.longitude) }
@@ -35,9 +38,10 @@ export default function TripDetailsScreen({ route }) {
 
   return (
     <View style={styles.container}>
+      {/* Top Map Section */}
       <MapView
         ref={mapRef}
-        style={styles.map}
+        style={[styles.map, { height: screenHeight * 0.4 }]} // 40% of screen height
         initialRegion={{
           latitude: startCoord.latitude,
           longitude: startCoord.longitude,
@@ -50,13 +54,14 @@ export default function TripDetailsScreen({ route }) {
         {routeCoords.length > 1 && <Polyline coordinates={routeCoords} strokeColor="blue" strokeWidth={4} />}
       </MapView>
 
-      <View style={styles.infoContainer}>
+      {/* Details Section */}
+      <ScrollView contentContainerStyle={styles.infoContainer}>
         <Text style={styles.infoText}>Date: {tripDate.toLocaleString()}</Text>
         <Text style={styles.infoText}>Final Fare: ₱{trip?.finalFare || 0}</Text>
-        <Text style={styles.infoText}>HS/College/PWD: ₱{trip?.fares?.highschool || 0}</Text>
-        <Text style={styles.infoText}>Elementary: ₱{trip?.fares?.elementary || 0}</Text>
-        <Text style={styles.infoText}>Kinder: ₱{trip?.fares?.kinder || 0}</Text>
-        <Text style={styles.infoText}>Distance: {trip?.distance || 0} km</Text>
+        <Text style={styles.infoText}>HS/College/PWD: ₱{trip?.fares?.highschool ?? 0}</Text>
+        <Text style={styles.infoText}>Elementary: ₱{trip?.fares?.elementary ?? 0}</Text>
+        <Text style={styles.infoText}>Kinder: ₱{trip?.fares?.kinder ?? 0}</Text>
+        <Text style={styles.infoText}>Distance: {trip?.distance ?? 0} km</Text>
         <Text style={styles.infoText}>Destination: {trip?.destinationInput || "N/A"}</Text>
         <Text style={styles.infoText}>MTOP #: {trip?.mtopNumber || "N/A"}</Text>
 
@@ -65,42 +70,53 @@ export default function TripDetailsScreen({ route }) {
           onPress={() =>
             navigation.navigate("ReportOvercharging", {
               mtopNumber: trip?.mtopNumber || "",
-              trip: trip, // ✅ pass full trip object
+              trip,
             })
           }
         >
           <Text style={styles.reportButtonText}>Report Overcharging</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0 },
-  map: { flex: 1 },
-  infoContainer: {
-    position: "absolute",
-    bottom: 20,
-    left: 20,
-    right: 20,
+  container: {
+    flex: 1,
+    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
     backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "black",
   },
-  infoText: { fontSize: 16, fontWeight: "bold", marginBottom: 6, color: "black" },
+  map: {
+    width: "100%",
+  },
+  infoContainer: {
+    padding: 20,
+    backgroundColor: "#fff",
+    borderTopWidth: 1,
+    borderColor: "#ddd",
+    alignItems: "center",
+  },
+  infoText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+    color: "black",
+    textAlign: "center",
+  },
   reportButton: {
-    marginTop: 12,
+    marginTop: 16,
     backgroundColor: "#F8D7DA",
-    padding: 12,
+    padding: 14,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "black",
     alignItems: "center",
     width: "100%",
   },
-  reportButtonText: { color: "black", fontWeight: "bold", fontSize: 16 },
+  reportButtonText: {
+    color: "black",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
 });

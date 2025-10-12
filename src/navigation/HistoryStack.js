@@ -20,16 +20,19 @@ export default function HistoryStack() {
         name="TripDetails"
         component={TripDetailsScreen}
         options={{
-          headerTitle: '',                 
-          headerBackTitleVisible: false, 
+          headerTitle: "Trip Details",
+          headerTitleAlign: "center",
         }}
       />
       <Stack.Screen
-              name="ReportOvercharging"
-              component={ReportOverchargingScreen}
-              options={{ title: 'Report Overcharging' }}
-            />
-                  <Stack.Screen
+        name="ReportOvercharging"
+        component={ReportOverchargingScreen}
+        options={{
+          title: 'Report Overcharging',
+          headerTitleAlign: "center",
+        }}
+      />
+      <Stack.Screen
         name="ViewReports"
         component={ViewReportsScreen}
         options={{ title: 'Submitted Reports' }}

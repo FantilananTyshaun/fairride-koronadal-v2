@@ -1,4 +1,3 @@
-//ProfileScreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -10,6 +9,8 @@ import {
   Platform,
   StatusBar,
   ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../services/firebase';
@@ -21,6 +22,7 @@ export default function ProfileScreen({ onLogout }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [contact, setContact] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -44,16 +46,18 @@ export default function ProfileScreen({ onLogout }) {
           setUserData(data);
           setName(data.name || '');
           setEmail(data.email || '');
+          setContact(data.contact || '');
         } else {
-          // Create Firestore user doc if missing
           const newData = {
             name: currentUser.displayName || '',
             email: currentUser.email || '',
+            contact: '',
           };
           await setDoc(doc(db, 'users', uid), newData);
           setUserData(newData);
           setName(newData.name);
           setEmail(newData.email);
+          setContact('');
         }
       } catch (err) {
         console.error('Failed to load profile:', err);
@@ -67,8 +71,8 @@ export default function ProfileScreen({ onLogout }) {
   }, []);
 
   const handleSave = async () => {
-    if (!name || !email) {
-      Alert.alert('Missing Fields', 'Name and Email cannot be empty.');
+    if (!name || !email || !contact) {
+      Alert.alert('Missing Fields', 'Name, Email, and Contact Number cannot be empty.');
       return;
     }
 
@@ -76,7 +80,6 @@ export default function ProfileScreen({ onLogout }) {
     if (!currentUser) return;
 
     try {
-      // Update Firebase Auth
       await updateProfile(currentUser, { displayName: name });
       if (currentUser.email !== email) {
         await updateEmail(currentUser, email);
@@ -85,11 +88,10 @@ export default function ProfileScreen({ onLogout }) {
         await updatePassword(currentUser, password);
       }
 
-      // Update Firestore
       const uid = currentUser.uid;
-      await setDoc(doc(db, 'users', uid), { name, email }, { merge: true });
+      await setDoc(doc(db, 'users', uid), { name, email, contact }, { merge: true });
 
-      setUserData({ name, email });
+      setUserData({ name, email, contact });
       setEditing(false);
       setPassword('');
       Alert.alert('Success', 'Profile updated!');
@@ -100,9 +102,7 @@ export default function ProfileScreen({ onLogout }) {
   };
 
   const handleLogout = async () => {
-    if (auth.currentUser) {
-      await auth.signOut();
-    }
+    if (auth.currentUser) await auth.signOut();
     if (onLogout) onLogout();
   };
 
@@ -124,75 +124,100 @@ export default function ProfileScreen({ onLogout }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Avatar + Name */}
-      <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>
-            {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
-          </Text>
-        </View>
-        <Text style={styles.profileName}>{userData.name || 'Unnamed User'}</Text>
-      </View>
-
-      {!editing ? (
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Email</Text>
-          <Text style={styles.cardValue}>{userData.email || 'No email set'}</Text>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
-            <Text style={styles.primaryButtonText}>Edit Profile</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.card}>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Enter name"
-              placeholderTextColor="#888"
-            />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.profileHeader}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
+              </Text>
+            </View>
+            <Text style={styles.profileName}>{userData.name || 'Unnamed User'}</Text>
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Enter email"
-              autoCapitalize="none"
-              placeholderTextColor="#888"
-            />
-          </View>
+          {!editing ? (
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Email</Text>
+              <Text style={styles.cardValue}>{userData.email || 'No email set'}</Text>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter new password"
-              secureTextEntry
-              placeholderTextColor="#888"
-            />
-          </View>
+              <Text style={styles.cardLabel}>Contact Number</Text>
+              <Text style={styles.cardValue}>{userData.contact || 'No contact set'}</Text>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-            <Text style={styles.primaryButtonText}>Save Changes</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => setEditing(true)}>
+                <Text style={styles.primaryButtonText}>Edit Profile</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity style={styles.cancelButton} onPress={() => setEditing(false)}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+              <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.card}>
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Enter name"
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="Enter email"
+                  autoCapitalize="none"
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Contact Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={contact}
+                  onChangeText={setContact}
+                  placeholder="Enter contact number"
+                  keyboardType="phone-pad"
+                  maxLength={11}
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter new password"
+                  secureTextEntry
+                  placeholderTextColor="#888"
+                />
+              </View>
+
+              <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
+                <Text style={styles.primaryButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setEditing(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -202,7 +227,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     backgroundColor: '#f8f8f8',
+  },
+  scrollContent: {
     alignItems: 'center',
+    paddingBottom: 40,
   },
   profileHeader: {
     alignItems: 'center',
