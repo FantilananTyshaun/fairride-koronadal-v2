@@ -17,7 +17,7 @@ import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
 import koronadalData from "../../data/koronadalZone.json";
 import { specialFares } from "../../utils/fixedFares";
-const GOOGLE_API_KEY = "api key"; // replace with your key
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your key
 
 export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
@@ -139,7 +139,7 @@ export default function CalculateFareScreen() {
           else if (startInsideEst && endInsideEst) estFare = 15;
           else if (!startInsideEst && !endInsideEst) {
             if (km > 2) estFare = km * 2 + 15;
-            else estFare = km * 2;
+            else estFare = km * 2 + 15;
           }
         }
 
@@ -314,7 +314,7 @@ export default function CalculateFareScreen() {
       else if (startInside && endInside) final = 15;
       else if (!startInside && !endInside && everEnteredDowntown)
         final = traveledKm * 2 + 15;
-      else final = traveledKm * 2;
+      else final = traveledKm * 2 + 15;
     }
 
     final = Math.round(final);
