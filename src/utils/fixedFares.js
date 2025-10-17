@@ -51,7 +51,7 @@ export const specialFares = [
   { name: "NIA", lat: 6.476136819890731, lng: 124.87351649684167, fare: 25, radius: 100 },
   { name: "Megaland", lat: 6.474196181008935, lng: 124.8708793370875, fare: 27, radius: 300 },
   { name: "The Farm", lat: 6.463225849093902, lng: 124.87873792545246, fare: 29, radius: 100 },
-  { name: "Regional Center", lat: 6.452122727419127, lng: 124.87834537073988, fare: 29, radius: 200 },
+  { name: "Regional Center", lat: 6.452122727419127, lng: 124.87834537073988, fare: 31, radius: 200 },
   { name: "Purok Nursery", lat: 6.459036201647572, lng: 124.84326931992794, fare: 29, radius: 300 },
   { name: "Purok Siodina", lat: 6.5155382071763235, lng: 124.85253844614799, fare: 17, radius: 200 }
 ];

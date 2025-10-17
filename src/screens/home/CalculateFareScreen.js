@@ -9,15 +9,18 @@ import {
   Platform,
   StatusBar,
   FlatList,
+  Alert,
 } from "react-native";
 import MapView, { Marker, Polyline, Polygon } from "react-native-maps";
 import * as Location from "expo-location";
 import { getDistance, isPointInPolygon } from "geolib";
 import { saveTripToFirebase } from "../../services/tripService";
 import { getAuth } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import koronadalData from "../../data/koronadalZone.json";
 import { specialFares } from "../../utils/fixedFares";
-const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY"; // replace with your key
+
+const GOOGLE_API_KEY = "AIzaSyCv7AGS7RzHWopFN50Y17b_xiJU1SKCMyY";
 
 export default function CalculateFareScreen() {
   const [location, setLocation] = useState(null);
@@ -25,6 +28,7 @@ export default function CalculateFareScreen() {
   const [destinationCoords, setDestinationCoords] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
   const [mtop, setMtop] = useState("");
+  const [mtopStatus, setMtopStatus] = useState("");
   const [finalFare, setFinalFare] = useState(null);
   const [fares, setFares] = useState(null);
   const [estimatedFare, setEstimatedFare] = useState(null);
@@ -37,41 +41,51 @@ export default function CalculateFareScreen() {
   const [koronadalBoundary, setKoronadalBoundary] = useState([]);
   const [startInside, setStartInside] = useState(false);
   const [everEnteredDowntown, setEverEnteredDowntown] = useState(false);
-
-  const watchRef = useRef(null);
   const mapRef = useRef(null);
+  const watchRef = useRef(null);
 
-  function findSpecialFare(coords) {
-    for (const spot of specialFares) {
-      const d = getDistance(
-        coords,
-        { latitude: spot.lat, longitude: spot.lng }
-      );
-      if (d <= spot.radius) {
-        return spot.fare;
-      }
+  // ✅ Check MTOP registration
+  const checkMtopRegistration = async (mtopNumber) => {
+    if (!mtopNumber) {
+      setMtopStatus("");
+      return;
+    }
+    try {
+      const db = getFirestore();
+      const ref = doc(db, "mtopList", mtopNumber.trim());
+      const snap = await getDoc(ref);
+      setMtopStatus(snap.exists() ? "Registered" : "Not Registered");
+    } catch (err) {
+      console.error("MTOP check error:", err);
+      setMtopStatus("Error");
+    }
+  };
+
+  const findSpecialFare = (coords) => {
+    for (const s of specialFares) {
+      const d = getDistance(coords, { latitude: s.lat, longitude: s.lng });
+      if (d <= s.radius) return s.fare;
     }
     return null;
-  }
+  };
 
-  // Load Koronadal polygon
   useEffect(() => {
     try {
-      const polygonFeature = koronadalData.features.find(
+      const poly = koronadalData.features.find(
         (f) => f.geometry.type === "Polygon"
       );
-      if (polygonFeature) {
-        const coords = polygonFeature.geometry.coordinates[0].map(
-          ([lng, lat]) => ({ latitude: lat, longitude: lng })
-        );
+      if (poly) {
+        const coords = poly.geometry.coordinates[0].map(([lng, lat]) => ({
+          latitude: lat,
+          longitude: lng,
+        }));
         setKoronadalBoundary(coords);
       }
     } catch (err) {
-      console.error("Failed to load Koronadal zone:", err);
+      console.error("Failed to load zone:", err);
     }
   }, []);
 
-  // Autocomplete
   const fetchSuggestions = async (text) => {
     setDestinationText(text);
     if (!text) return setSuggestions([]);
@@ -105,141 +119,116 @@ export default function CalculateFareScreen() {
     }
   };
 
-  // Estimate distance-based fare
   const fetchEstimatedFare = async (start, end) => {
     try {
       const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${start.latitude},${start.longitude}&destinations=${end.latitude},${end.longitude}&key=${GOOGLE_API_KEY}`;
       const res = await fetch(url);
       const data = await res.json();
+
       if (data.rows?.[0]?.elements?.[0]?.distance?.value) {
         const meters = data.rows[0].elements[0].distance.value;
         const km = meters / 1000;
 
         const startInsideEst =
-          koronadalBoundary.length > 0 &&
+          koronadalBoundary.length &&
           isPointInPolygon(start, koronadalBoundary);
         const endInsideEst =
-          koronadalBoundary.length > 0 &&
-          isPointInPolygon(end, koronadalBoundary);
+          koronadalBoundary.length && isPointInPolygon(end, koronadalBoundary);
 
-        // --- updated fare logic (matches endRide) ---
         let estFare = 0;
+        const startSpecial = findSpecialFare(start);
+        const endSpecial = findSpecialFare(end);
 
-        // Check if destination is in special fare list
-        const startSpecialFare = findSpecialFare(start);
-        const endSpecialFare = findSpecialFare(end);
-
-        if (startInsideEst && endSpecialFare) {
-          estFare = endSpecialFare; // Downtown → special
-        } else if (!startInsideEst && endInsideEst && startSpecialFare) {
-          estFare = startSpecialFare; // Special → downtown
-        } else {
-          if (!startInsideEst && endInsideEst) estFare = km * 2 + 15;
-          else if (startInsideEst && !endInsideEst) estFare = 15 + km * 2;
-          else if (startInsideEst && endInsideEst) estFare = 15;
-          else if (!startInsideEst && !endInsideEst) {
-            if (km > 2) estFare = km * 2 + 15;
-            else estFare = km * 2 + 15;
-          }
-        }
-
-
+        if (startInsideEst && endSpecial) estFare = endSpecial;
+        else if (!startInsideEst && endInsideEst && startSpecial)
+          estFare = startSpecial;
+        else if (!startInsideEst && endInsideEst) estFare = km * 2 + 15;
+        else if (startInsideEst && !endInsideEst) estFare = 15 + km * 2;
+        else if (startInsideEst && endInsideEst) estFare = 15;
+        else estFare = km * 2 + 15;
 
         estFare = Math.round(estFare);
 
-        const hsFare = Math.max(estFare - 3, 0);
-        const elemFare = Math.max(hsFare - 2, 0);
-        const kinderFare = Math.max(elemFare - 2, 0);
+        const hs = Math.max(estFare - 3, 0);
+        const elem = Math.max(hs - 2, 0);
+        const kinder = Math.max(elem - 2, 0);
 
         setEstimatedDistance(km.toFixed(2));
         setEstimatedFare(estFare);
-        setEstimatedFares({
-          highschool: hsFare,
-          elementary: elemFare,
-          kinder: kinderFare,
-        });
+        setEstimatedFares({ highschool: hs, elementary: elem, kinder });
       }
     } catch (err) {
       console.error("Distance Matrix error:", err);
     }
   };
 
-
   useEffect(() => {
-    if (location && destinationCoords) {
+    if (location && destinationCoords)
       fetchEstimatedFare(location, destinationCoords);
-    }
   }, [location, destinationCoords]);
 
-  // Snap route to roads
   const snapToRoads = async (coords) => {
+    if (coords.length < 2) return coords;
     try {
-      if (coords.length < 2) return coords;
       const path = coords.map((c) => `${c.latitude},${c.longitude}`).join("|");
       const url = `https://roads.googleapis.com/v1/snapToRoads?path=${path}&interpolate=true&key=${GOOGLE_API_KEY}`;
       const res = await fetch(url);
       const data = await res.json();
-      if (data.snappedPoints) {
+      if (data.snappedPoints)
         return data.snappedPoints.map((p) => ({
           latitude: p.location.latitude,
           longitude: p.location.longitude,
         }));
-      }
-      return coords;
     } catch (err) {
       console.error("SnapToRoads error:", err);
-      return coords;
     }
+    return coords;
   };
 
-  // Current user
   useEffect(() => {
     const auth = getAuth();
-    const currentUser = auth.currentUser;
-    if (currentUser) {
+    const current = auth.currentUser;
+    if (current)
       setUser({
-        uid: currentUser.uid,
-        email: currentUser.email,
-        displayName: currentUser.displayName || "",
+        uid: current.uid,
+        email: current.email,
+        displayName: current.displayName || "",
       });
-    }
   }, []);
 
-  // Get current location
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === "granted") {
-        const current = await Location.getCurrentPositionAsync({
+        const pos = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Highest,
         });
-        setLocation(current.coords);
+        setLocation(pos.coords);
       }
     })();
   }, []);
 
-  // Start Ride
   const startRide = async () => {
     if (!destinationCoords || !mtop)
-      return alert("Please set destination and MTOP first.");
+      return Alert.alert("Missing Info", "Enter destination and MTOP first.");
     setRouteCoords([]);
     setLiveDistance(0);
     setEverEnteredDowntown(false);
 
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") return alert("Location permission required.");
+    if (status !== "granted") return Alert.alert("Location permission needed");
 
-    const currentLoc = await Location.getCurrentPositionAsync({
+    const cur = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Highest,
     });
-    setLocation(currentLoc.coords);
-    setRouteCoords([currentLoc.coords]);
+    setLocation(cur.coords);
+    setRouteCoords([cur.coords]);
 
-    if (koronadalBoundary.length > 0) {
-      const inside = isPointInPolygon(currentLoc.coords, koronadalBoundary);
-      setStartInside(inside);
-      if (inside) setEverEnteredDowntown(true);
-    }
+    const inside = koronadalBoundary.length
+      ? isPointInPolygon(cur.coords, koronadalBoundary)
+      : false;
+    setStartInside(inside);
+    if (inside) setEverEnteredDowntown(true);
 
     watchRef.current = await Location.watchPositionAsync(
       {
@@ -254,95 +243,111 @@ export default function CalculateFareScreen() {
           { duration: 1000 }
         );
         setRouteCoords((prev) => {
-          const last = prev[prev.length - 1];
-          if (last) {
-            const segment = getDistance(last, loc.coords) / 1000;
-            setLiveDistance((d) => d + segment);
-            return [...prev, loc.coords];
+          if (prev.length > 0) {
+            const last = prev[prev.length - 1];
+            const seg = getDistance(last, loc.coords) / 1000;
+            setLiveDistance((d) => d + seg);
           }
-          return [loc.coords];
+          return [...prev, loc.coords];
         });
 
-        // track if entered downtown
-        if (koronadalBoundary.length > 0) {
-          const nowInside = isPointInPolygon(loc.coords, koronadalBoundary);
-          if (nowInside) setEverEnteredDowntown(true);
-        }
+        if (
+          koronadalBoundary.length &&
+          isPointInPolygon(loc.coords, koronadalBoundary)
+        )
+          setEverEnteredDowntown(true);
       }
     );
-
     setTracking(true);
   };
 
-  // End Ride
+  // ✅ Updated End Ride — auto reset + recenter map
   const endRide = async () => {
     if (watchRef.current) {
       watchRef.current.remove();
       watchRef.current = null;
     }
     setTracking(false);
-
-    if (routeCoords.length < 1) return alert("No route data.");
+    if (!routeCoords.length) return Alert.alert("No route data.");
 
     const snapped = await snapToRoads(routeCoords);
-
-    let traveledMeters = 0;
-    for (let i = 1; i < snapped.length; i++) {
-      traveledMeters += getDistance(snapped[i - 1], snapped[i]);
-    }
-    const traveledKm = traveledMeters / 1000;
+    let meters = 0;
+    for (let i = 1; i < snapped.length; i++)
+      meters += getDistance(snapped[i - 1], snapped[i]);
+    const km = meters / 1000;
 
     const endInside =
-      koronadalBoundary.length > 0 &&
+      koronadalBoundary.length &&
       isPointInPolygon(snapped[snapped.length - 1], koronadalBoundary);
 
-    // --- final fare logic (with downtown pass-through rule) ---
-    let final = 0;
+    let fare = 0;
+    const startSpecial = findSpecialFare(snapped[0]);
+    const endSpecial = findSpecialFare(snapped[snapped.length - 1]);
 
-    //Check if destination qualifies for a fixed fare
-    const startSpecialFare = findSpecialFare(snapped[0]);
-    const endSpecialFare = findSpecialFare(snapped[snapped.length - 1]);
+    if (startInside && endSpecial) fare = endSpecial;
+    else if (!startInside && endInside && startSpecial) fare = startSpecial;
+    else if (!startInside && endInside) fare = km * 2 + 15;
+    else if (startInside && !endInside) fare = 15 + km * 2;
+    else if (startInside && endInside) fare = 15;
+    else if (!startInside && !endInside && everEnteredDowntown)
+      fare = km * 2 + 15;
+    else fare = km * 2 + 15;
 
-    if (startInside && endSpecialFare) {
-      final = endSpecialFare; // Downtown → special
-    } else if (!startInside && endInside && startSpecialFare) {
-      final = startSpecialFare; // Special → downtown
-    } else {
+    fare = Math.round(fare);
+    setFinalFare(fare);
 
-      if (!startInside && endInside) final = traveledKm * 2 + 15;
-      else if (startInside && !endInside) final = 15 + traveledKm * 2;
-      else if (startInside && endInside) final = 15;
-      else if (!startInside && !endInside && everEnteredDowntown)
-        final = traveledKm * 2 + 15;
-      else final = traveledKm * 2 + 15;
-    }
-
-    final = Math.round(final);
-    setFinalFare(final);
-
-    const hsFare = Math.max(final - 3, 0);
-    const elemFare = Math.max(hsFare - 2, 0);
-    const kinderFare = Math.max(elemFare - 2, 0);
-    setFares({ highschool: hsFare, elementary: elemFare, kinder: kinderFare });
+    const hs = Math.max(fare - 3, 0);
+    const elem = Math.max(hs - 2, 0);
+    const kinder = Math.max(elem - 2, 0);
+    setFares({ highschool: hs, elementary: elem, kinder });
 
     const trip = {
       start: snapped[0],
       end: snapped[snapped.length - 1],
       destinationInput: destinationText,
       mtopNumber: mtop,
-      distance: traveledKm.toFixed(2),
-      finalFare: final,
-      fares: { highschool: hsFare, elementary: elemFare, kinder: kinderFare },
+      distance: km.toFixed(2),
+      finalFare: fare,
+      fares: { highschool: hs, elementary: elem, kinder },
       timestamp: new Date().toISOString(),
       routeCoords: snapped,
     };
 
     try {
       if (user) await saveTripToFirebase(trip, user.uid);
-      alert(`Ride Ended.\nFinal Fare: ₱${final}`);
+      Alert.alert(
+        "Ride Ended",
+        `Final Fare: ₱${fare}\nHigh School/College/PWD/SC: ₱${Math.max(fare - 3, 0)}\nElementary: ₱${Math.max(fare - 5, 0)}\nKinder/Daycare: ₱${Math.max(fare - 7, 0)}`
+      );
+
+
+      // ✅ Reset everything
+      setMtop("");
+      setMtopStatus("");
+      setDestinationText("");
+      setDestinationCoords(null);
+      setEstimatedFare(null);
+      setEstimatedFares(null);
+      setEstimatedDistance(null);
+      setFinalFare(null);
+      setFares(null);
+      setRouteCoords([]);
+      setLiveDistance(0);
+      setEverEnteredDowntown(false);
+      setStartInside(false);
+
+      // ✅ Recenter to live location
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Highest,
+      });
+      setLocation(pos.coords);
+      mapRef.current?.animateCamera(
+        { center: pos.coords, zoom: 16 },
+        { duration: 1000 }
+      );
     } catch (err) {
-      console.error(err);
-      alert("Failed to save trip.");
+      console.error("Save error:", err);
+      Alert.alert("Failed to save trip");
     }
   };
 
@@ -371,22 +376,14 @@ export default function CalculateFareScreen() {
           <Marker
             coordinate={routeCoords[routeCoords.length - 1]}
             pinColor="green"
-            title="Current Location"
+            title="Current"
           />
         )}
         {destinationCoords && (
-          <Marker
-            coordinate={destinationCoords}
-            pinColor="red"
-            title="Destination"
-          />
+          <Marker coordinate={destinationCoords} pinColor="red" title="Dest" />
         )}
         {routeCoords.length > 1 && (
-          <Polyline
-            coordinates={routeCoords}
-            strokeWidth={4}
-            strokeColor="blue"
-          />
+          <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="blue" />
         )}
       </MapView>
 
@@ -400,13 +397,11 @@ export default function CalculateFareScreen() {
         {suggestions.length > 0 && (
           <FlatList
             data={suggestions}
-            keyExtractor={(item) => item.place_id}
+            keyExtractor={(i) => i.place_id}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.suggestion}
-                onPress={() =>
-                  fetchPlaceDetails(item.place_id, item.description)
-                }
+                onPress={() => fetchPlaceDetails(item.place_id, item.description)}
               >
                 <Text>{item.description}</Text>
               </TouchableOpacity>
@@ -414,28 +409,43 @@ export default function CalculateFareScreen() {
             style={styles.suggestionList}
           />
         )}
+
         <TextInput
           style={styles.input}
           placeholder="Enter MTOP Number"
           value={mtop}
-          onChangeText={setMtop}
+          onChangeText={(t) => {
+            setMtop(t);
+            checkMtopRegistration(t);
+          }}
         />
+        {mtop.trim() && mtopStatus && (
+          <Text
+            style={{
+              color:
+                mtopStatus === "Registered"
+                  ? "green"
+                  : mtopStatus === "Not Registered"
+                    ? "red"
+                    : "orange",
+              fontWeight: "bold",
+              marginBottom: 6,
+            }}
+          >
+            {mtopStatus}
+          </Text>
+        )}
       </View>
 
       <View style={styles.bottomControls}>
         {estimatedFare !== null && !tracking && (
           <>
             <Text style={styles.info}>
-              Estimated: ₱{estimatedFare}{" "}
-              {estimatedDistance ? `(${estimatedDistance} km)` : ""}
+              Estimated: ₱{estimatedFare} ({estimatedDistance} km)
             </Text>
-            <Text style={styles.info}>
-              HS/College/PWD: ₱{estimatedFares?.highschool}
-            </Text>
-            <Text style={styles.info}>
-              Elementary: ₱{estimatedFares?.elementary}
-            </Text>
-            <Text style={styles.info}>Kinder: ₱{estimatedFares?.kinder}</Text>
+            <Text style={styles.info}>HS/College/PWD/SC: ₱{estimatedFares?.highschool}</Text>
+            <Text style={styles.info}>Elementary: ₱{estimatedFares?.elementary}</Text>
+            <Text style={styles.info}>Kinder/Daycare: ₱{estimatedFares?.kinder}</Text>
           </>
         )}
 
@@ -448,23 +458,20 @@ export default function CalculateFareScreen() {
         {finalFare !== null && (
           <>
             <Text style={styles.info}>Final Fare: ₱{finalFare}</Text>
-            <Text style={styles.info}>
-              HS/College/PWD: ₱{fares?.highschool}
-            </Text>
+            <Text style={styles.info}>HS/College/PWD/SC: ₱{fares?.highschool}</Text>
             <Text style={styles.info}>Elementary: ₱{fares?.elementary}</Text>
-            <Text style={styles.info}>Kinder: ₱{fares?.kinder}</Text>
+            <Text style={styles.info}>Kinder/Daycare: ₱{fares?.kinder}</Text>
           </>
         )}
 
-        {!tracking ? (
-          <TouchableOpacity style={styles.button} onPress={startRide}>
-            <Text style={styles.buttonText}>Start Ride</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity style={styles.button} onPress={endRide}>
-            <Text style={styles.buttonText}>End Ride</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={tracking ? endRide : startRide}
+        >
+          <Text style={styles.buttonText}>
+            {tracking ? "End Ride" : "Start Ride"}
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -495,7 +502,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 8,
-    backgroundColor: "white",
   },
   suggestionList: {
     maxHeight: 150,
@@ -514,13 +520,10 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     padding: 16,
     borderRadius: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
     elevation: 3,
     alignItems: "center",
   },
-  info: { fontSize: 16, marginBottom: 6, fontWeight: "bold", color: "black" },
+  info: { fontSize: 16, marginBottom: 6, fontWeight: "bold" },
   button: {
     backgroundColor: "green",
     padding: 14,

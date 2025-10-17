@@ -12,9 +12,9 @@ export default function TripDetailsScreen({ route }) {
 
   const routeCoords = Array.isArray(trip?.routeCoords)
     ? trip.routeCoords.map((p) => ({
-        latitude: Number(p.latitude),
-        longitude: Number(p.longitude),
-      }))
+      latitude: Number(p.latitude),
+      longitude: Number(p.longitude),
+    }))
     : [];
 
   const startCoord = trip?.start
@@ -58,9 +58,9 @@ export default function TripDetailsScreen({ route }) {
       <ScrollView contentContainerStyle={styles.infoContainer}>
         <Text style={styles.infoText}>Date: {tripDate.toLocaleString()}</Text>
         <Text style={styles.infoText}>Final Fare: ₱{trip?.finalFare || 0}</Text>
-        <Text style={styles.infoText}>HS/College/PWD: ₱{trip?.fares?.highschool ?? 0}</Text>
+        <Text style={styles.infoText}>HS/College/PWD/SC: ₱{trip?.fares?.highschool ?? 0}</Text>
         <Text style={styles.infoText}>Elementary: ₱{trip?.fares?.elementary ?? 0}</Text>
-        <Text style={styles.infoText}>Kinder: ₱{trip?.fares?.kinder ?? 0}</Text>
+        <Text style={styles.infoText}>Kinder/Daycare: ₱{trip?.fares?.kinder ?? 0}</Text>
         <Text style={styles.infoText}>Distance: {trip?.distance ?? 0} km</Text>
         <Text style={styles.infoText}>Destination: {trip?.destinationInput || "N/A"}</Text>
         <Text style={styles.infoText}>MTOP #: {trip?.mtopNumber || "N/A"}</Text>

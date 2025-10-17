@@ -68,9 +68,9 @@ export default function HistoryScreen() {
       >
         <Text style={styles.tripText}>Date: {tripDate.toLocaleString()}</Text>
         <Text style={styles.tripText}>Final Fare: ₱{item.finalFare}</Text>
-        <Text style={styles.tripText}>HS/College/PWD: ₱{item.fares?.highschool}</Text>
+        <Text style={styles.tripText}>HS/College/PWD/SC: ₱{item.fares?.highschool}</Text>
         <Text style={styles.tripText}>Elementary: ₱{item.fares?.elementary}</Text>
-        <Text style={styles.tripText}>Kinder: ₱{item.fares?.kinder}</Text>
+        <Text style={styles.tripText}>Kinder/Daycare: ₱{item.fares?.kinder}</Text>
         <Text style={styles.tripText}>Distance: {item.distance} km</Text>
 
         {routeCoords.length > 1 && (
